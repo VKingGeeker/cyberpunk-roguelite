@@ -6,6 +6,7 @@
 import Phaser from 'phaser';
 import Player from '../entities/Player';
 import Enemy from '../entities/Enemy';
+import PowerUp, { PowerUpType, PowerUpRarity } from '../entities/PowerUp';
 import { GAME_CONFIG } from '../core/Config';
 import { EnemyType } from '../core/Types';
 import { getEnemyTemplate, rollLoot } from '../data/Enemies';
@@ -13,9 +14,11 @@ import { getEnemyTemplate, rollLoot } from '../data/Enemies';
 export default class GameScene extends Phaser.Scene {
     private player!: Player;
     private enemies: Enemy[] = [];
+    private powerUps: PowerUp[] = [];
     private timeElapsed: number = 0;
     private levelTime: number = GAME_CONFIG.level.duration;
     private spawnTimer!: Phaser.Time.TimerEvent;
+    private powerUpTimer!: Phaser.Time.TimerEvent;
     private isGameOver: boolean = false;
 
     constructor() {
@@ -29,6 +32,7 @@ export default class GameScene extends Phaser.Scene {
         // 重置状态
         this.isGameOver = false;
         this.enemies = [];
+        this.powerUps = [];
         this.timeElapsed = 0;
 
         // 创建地图
@@ -40,11 +44,17 @@ export default class GameScene extends Phaser.Scene {
         // 设置相机跟随玩家
         this.setupCamera();
 
+        // 生成初始道具
+        this.spawnInitialPowerUps();
+
         // 创建初始敌人
         this.spawnInitialEnemies();
 
         // 启动持续生成敌人的定时器
         this.startEnemySpawner();
+
+        // 启动道具生成定时器
+        this.startPowerUpSpawner();
 
         // 创建UI场景
         this.scene.launch('UIScene', { player: this.player });
@@ -124,6 +134,82 @@ export default class GameScene extends Phaser.Scene {
     }
 
     /**
+     * 生成初始道具
+     */
+    private spawnInitialPowerUps(): void {
+        // 在地图上随机生成道具
+        const powerUpCount = 30; // 初始生成30个道具
+
+        for (let i = 0; i < powerUpCount; i++) {
+            this.spawnRandomPowerUp();
+        }
+    }
+
+    /**
+     * 生成随机道具
+     */
+    private spawnRandomPowerUp(): void {
+        if (this.isGameOver) return;
+
+        const worldWidth = GAME_CONFIG.worldWidth;
+        const worldHeight = GAME_CONFIG.worldHeight;
+        const margin = 100;
+
+        // 随机位置
+        const x = Phaser.Math.Between(margin, worldWidth - margin);
+        const y = Phaser.Math.Between(margin, worldHeight - margin);
+
+        // 随机类型
+        const types = Object.values(PowerUpType);
+        const type = types[Phaser.Math.Between(0, types.length - 1)];
+
+        // 随机稀有度（加权）
+        const rand = Math.random();
+        let rarity: PowerUpRarity;
+        if (rand < 0.5) {
+            rarity = PowerUpRarity.COMMON;
+        } else if (rand < 0.8) {
+            rarity = PowerUpRarity.RARE;
+        } else if (rand < 0.95) {
+            rarity = PowerUpRarity.EPIC;
+        } else {
+            rarity = PowerUpRarity.LEGENDARY;
+        }
+
+        this.spawnPowerUp(x, y, type, rarity);
+    }
+
+    /**
+     * 生成指定道具
+     */
+    private spawnPowerUp(x: number, y: number, type: PowerUpType, rarity: PowerUpRarity): void {
+        const powerUp = new PowerUp(this, x, y, type, rarity);
+        this.powerUps.push(powerUp);
+
+        // 添加与玩家的碰撞检测
+        this.physics.add.overlap(this.player, powerUp, () => {
+            this.collectPowerUp(powerUp);
+        });
+    }
+
+    /**
+     * 收集道具
+     */
+    private collectPowerUp(powerUp: PowerUp): void {
+        // 应用效果
+        powerUp.applyTo(this.player);
+
+        // 从列表中移除
+        const index = this.powerUps.indexOf(powerUp);
+        if (index > -1) {
+            this.powerUps.splice(index, 1);
+        }
+
+        // 销毁道具
+        powerUp.collect();
+    }
+
+    /**
      * 生成初始敌人
      */
     private spawnInitialEnemies(): void {
@@ -157,6 +243,21 @@ export default class GameScene extends Phaser.Scene {
     }
 
     /**
+     * 启动道具生成定时器
+     */
+    private startPowerUpSpawner(): void {
+        this.powerUpTimer = this.time.addEvent({
+            delay: 5000, // 每5秒生成一个道具
+            callback: () => {
+                if (!this.isGameOver && this.powerUps.length < 50) {
+                    this.spawnRandomPowerUp();
+                }
+            },
+            loop: true
+        });
+    }
+
+    /**
      * 从世界边界外生成敌人
      */
     private spawnEnemyFromEdge(type: EnemyType): void {
@@ -164,27 +265,26 @@ export default class GameScene extends Phaser.Scene {
 
         const worldWidth = GAME_CONFIG.worldWidth;
         const worldHeight = GAME_CONFIG.worldHeight;
-        const margin = 50; // 在边界外的距离
+        const margin = 50;
 
         let x: number, y: number;
 
-        // 随机选择一个边界（0: 上, 1: 下, 2: 左, 3: 右）
         const edge = Phaser.Math.Between(0, 3);
 
         switch (edge) {
-            case 0: // 上边界
+            case 0:
                 x = Phaser.Math.Between(50, worldWidth - 50);
                 y = -margin;
                 break;
-            case 1: // 下边界
+            case 1:
                 x = Phaser.Math.Between(50, worldWidth - 50);
                 y = worldHeight + margin;
                 break;
-            case 2: // 左边界
+            case 2:
                 x = -margin;
                 y = Phaser.Math.Between(50, worldHeight - 50);
                 break;
-            case 3: // 右边界
+            case 3:
                 x = worldWidth + margin;
                 y = Phaser.Math.Between(50, worldHeight - 50);
                 break;
@@ -193,17 +293,12 @@ export default class GameScene extends Phaser.Scene {
                 y = worldHeight / 2;
         }
 
-        // 创建敌人实体
         const enemy = new Enemy(this, x, y, type);
         this.enemies.push(enemy);
-
-        // 设置敌人追踪玩家
         enemy.setTarget(this.player);
 
-        // 添加碰撞检测
         this.physics.add.collider(this.player, enemy, this.handlePlayerEnemyCollision, undefined, this);
         
-        // 敌人之间的碰撞
         for (const otherEnemy of this.enemies) {
             if (otherEnemy !== enemy) {
                 this.physics.add.collider(enemy, otherEnemy);
@@ -218,7 +313,6 @@ export default class GameScene extends Phaser.Scene {
         player: Phaser.Types.Physics.Arcade.GameObjectWithBody,
         enemy: Phaser.Types.Physics.Arcade.GameObjectWithBody
     ): void {
-        // 碰撞时敌人攻击玩家
         if ((player as Player).takeDamage && !this.isGameOver) {
             const enemyObj = enemy as Enemy;
             const enemyStats = enemyObj.getStats();
@@ -231,7 +325,6 @@ export default class GameScene extends Phaser.Scene {
      * 敌人被击败处理
      */
     private onEnemyDefeated(enemy: Enemy): void {
-        // 从敌人列表中移除
         const index = this.enemies.indexOf(enemy);
         if (index > -1) {
             this.enemies.splice(index, 1);
@@ -239,10 +332,8 @@ export default class GameScene extends Phaser.Scene {
 
         if (this.isGameOver) return;
 
-        // 增加击杀数
         this.player.addKill();
 
-        // 计算掉落
         const enemyType = enemy.getEnemyType();
         const template = getEnemyTemplate(enemyType);
         if (template) {
@@ -250,9 +341,39 @@ export default class GameScene extends Phaser.Scene {
             for (const itemId of loot) {
                 this.player.addItem(itemId);
             }
-
-            // 增加经验值
             this.player.addExperience(template.experience);
+
+            // 击败敌人时有概率掉落道具
+            this.tryDropPowerUp(enemy.x, enemy.y, enemyType);
+        }
+    }
+
+    /**
+     * 尝试掉落道具
+     */
+    private tryDropPowerUp(x: number, y: number, enemyType: EnemyType): void {
+        // 根据敌人类型决定掉落概率
+        const dropRates: Record<EnemyType, number> = {
+            [EnemyType.COMMON]: 0.1,   // 10%
+            [EnemyType.ELITE]: 0.3,    // 30%
+            [EnemyType.BOSS]: 0.8      // 80%
+        };
+
+        if (Math.random() < dropRates[enemyType]) {
+            const types = Object.values(PowerUpType);
+            const type = types[Phaser.Math.Between(0, types.length - 1)];
+
+            // 精英和Boss掉落更高稀有度
+            let rarity: PowerUpRarity;
+            if (enemyType === EnemyType.BOSS) {
+                rarity = Math.random() < 0.5 ? PowerUpRarity.EPIC : PowerUpRarity.LEGENDARY;
+            } else if (enemyType === EnemyType.ELITE) {
+                rarity = Math.random() < 0.5 ? PowerUpRarity.RARE : PowerUpRarity.EPIC;
+            } else {
+                rarity = Math.random() < 0.7 ? PowerUpRarity.COMMON : PowerUpRarity.RARE;
+            }
+
+            this.spawnPowerUp(x, y, type, rarity);
         }
     }
 
@@ -260,19 +381,18 @@ export default class GameScene extends Phaser.Scene {
      * 玩家死亡处理
      */
     private onPlayerDeath(): void {
-        // 防止重复调用
         if (this.isGameOver) return;
         this.isGameOver = true;
 
-        // 停止生成敌人
         if (this.spawnTimer) {
             this.spawnTimer.destroy();
         }
+        if (this.powerUpTimer) {
+            this.powerUpTimer.destroy();
+        }
 
-        // 暂停物理系统
         this.physics.pause();
 
-        // 延迟显示游戏结束界面
         this.time.delayedCall(500, () => {
             this.showGameOver();
         });
@@ -285,16 +405,13 @@ export default class GameScene extends Phaser.Scene {
         const centerX = this.cameras.main.scrollX + GAME_CONFIG.width / 2;
         const centerY = this.cameras.main.scrollY + GAME_CONFIG.height / 2;
 
-        // 创建容器来管理所有UI元素
         const container = this.add.container(centerX, centerY);
         container.setDepth(1000);
 
-        // 半透明背景
         const bg = this.add.rectangle(0, 0, 450, 320, 0x000000, 0.9);
         bg.setStrokeStyle(3, 0xff0000, 1);
         container.add(bg);
 
-        // 游戏结束文字
         const gameOverText = this.add.text(0, -100, 'GAME OVER', {
             fontSize: '48px',
             fontStyle: 'bold',
@@ -304,7 +421,6 @@ export default class GameScene extends Phaser.Scene {
         gameOverText.setOrigin(0.5);
         container.add(gameOverText);
 
-        // 统计信息
         const statsText = this.add.text(0, -20, `击败敌人: ${this.player.getKillCount()}\n等级: ${this.player.getLevel()}`, {
             fontSize: '24px',
             color: '#ffffff',
@@ -315,7 +431,6 @@ export default class GameScene extends Phaser.Scene {
         statsText.setOrigin(0.5);
         container.add(statsText);
 
-        // 重新开始按钮
         const restartBtn = this.add.rectangle(0, 80, 200, 50, 0x1a1a2e, 1);
         restartBtn.setStrokeStyle(2, 0x00ffff, 1);
         container.add(restartBtn);
@@ -329,7 +444,6 @@ export default class GameScene extends Phaser.Scene {
         restartLabel.setOrigin(0.5);
         container.add(restartLabel);
 
-        // 添加按钮交互
         restartBtn.setInteractive({ useHandCursor: true });
 
         restartBtn.on('pointerover', () => {
@@ -351,10 +465,7 @@ export default class GameScene extends Phaser.Scene {
      * 重新开始游戏
      */
     private restartGame(): void {
-        // 停止UI场景
         this.scene.stop('UIScene');
-        
-        // 重启游戏场景
         this.scene.restart();
     }
 
@@ -362,20 +473,16 @@ export default class GameScene extends Phaser.Scene {
      * 更新场景
      */
     update(time: number, delta: number): void {
-        // 游戏结束时不再更新
         if (this.isGameOver) return;
 
-        // 更新玩家
         if (this.player && !this.player.getIsDead()) {
             this.player.update(time, delta);
         }
 
-        // 更新敌人
         for (const enemy of this.enemies) {
             enemy.update(time, delta);
         }
 
-        // 更新时间
         this.timeElapsed += delta / 1000;
     }
 }

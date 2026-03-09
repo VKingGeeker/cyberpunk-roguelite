@@ -106,6 +106,120 @@ export default class BootScene extends Phaser.Scene {
         this.createSkillIconTexture('icon_spin', 0xff8800);
         this.createSkillIconTexture('icon_dash', 0x44ff44);
         this.createSkillIconTexture('icon_heal', 0x44ff44);
+
+        // 创建升级道具纹理
+        this.createPowerUpTextures();
+    }
+
+    /**
+     * 创建升级道具纹理
+     */
+    private createPowerUpTextures(): void {
+        // 根据道具类型和稀有度生成不同颜色和样式的纹理
+        const typeColors: Record<string, number> = {
+            health: 0x44ff44,    // 绿色 - 生命
+            attack: 0xff4444,    // 红色 - 攻击
+            defense: 0x4488ff,   // 蓝色 - 防御
+            speed: 0xffff44,     // 黄色 - 速度
+            crit: 0xff44ff,      // 紫色 - 暴击
+            exp: 0x44ffff        // 青色 - 经验
+        };
+
+        const rarityBorders: Record<string, number> = {
+            common: 0x888888,    // 灰色边框
+            rare: 0x4488ff,      // 蓝色边框
+            epic: 0xaa44ff,      // 紫色边框
+            legendary: 0xffaa00  // 金色边框
+        };
+
+        // 为每种类型和稀有度组合创建纹理
+        for (const [type, color] of Object.entries(typeColors)) {
+            for (const [rarity, borderColor] of Object.entries(rarityBorders)) {
+                this.createPowerUpTexture(`powerup_${type}_${rarity}`, color, borderColor);
+            }
+        }
+    }
+
+    /**
+     * 创建单个升级道具纹理
+     */
+    private createPowerUpTexture(key: string, innerColor: number, borderColor: number): void {
+        const graphics = this.add.graphics();
+        const size = 24;
+        const center = size / 2;
+
+        // 外圈光晕
+        graphics.fillStyle(borderColor, 0.3);
+        graphics.fillCircle(center, center, 11);
+
+        // 主体圆形
+        graphics.fillStyle(innerColor, 1);
+        graphics.fillCircle(center, center, 8);
+
+        // 边框
+        graphics.lineStyle(2, borderColor, 1);
+        graphics.strokeCircle(center, center, 11);
+
+        // 内部符号
+        graphics.lineStyle(2, 0xffffff, 0.8);
+        if (key.includes('health')) {
+            // 十字符号
+            graphics.moveTo(center, center - 4);
+            graphics.lineTo(center, center + 4);
+            graphics.moveTo(center - 4, center);
+            graphics.lineTo(center + 4, center);
+            graphics.strokePath();
+        } else if (key.includes('attack')) {
+            // 剑符号
+            graphics.moveTo(center - 4, center + 4);
+            graphics.lineTo(center + 4, center - 4);
+            graphics.moveTo(center - 2, center - 2);
+            graphics.lineTo(center - 4, center);
+            graphics.strokePath();
+        } else if (key.includes('defense')) {
+            // 盾牌符号
+            graphics.strokeCircle(center, center, 4);
+        } else if (key.includes('speed')) {
+            // 箭头符号
+            graphics.moveTo(center - 4, center);
+            graphics.lineTo(center + 4, center);
+            graphics.moveTo(center + 1, center - 3);
+            graphics.lineTo(center + 4, center);
+            graphics.lineTo(center + 1, center + 3);
+            graphics.strokePath();
+        } else if (key.includes('crit')) {
+            // 星星符号（手动绘制五角星）
+            graphics.fillStyle(0xffffff, 0.8);
+            const points: { x: number; y: number }[] = [];
+            for (let i = 0; i < 10; i++) {
+                const angle = (i * Math.PI / 5) - Math.PI / 2;
+                const radius = i % 2 === 0 ? 5 : 2;
+                points.push({
+                    x: center + radius * Math.cos(angle),
+                    y: center + radius * Math.sin(angle)
+                });
+            }
+            graphics.beginPath();
+            graphics.moveTo(points[0].x, points[0].y);
+            for (let i = 1; i < points.length; i++) {
+                graphics.lineTo(points[i].x, points[i].y);
+            }
+            graphics.closePath();
+            graphics.fillPath();
+        } else if (key.includes('exp')) {
+            // 钻石符号
+            graphics.fillStyle(0xffffff, 0.8);
+            graphics.beginPath();
+            graphics.moveTo(center, center - 4);
+            graphics.lineTo(center + 4, center);
+            graphics.lineTo(center, center + 4);
+            graphics.lineTo(center - 4, center);
+            graphics.closePath();
+            graphics.fillPath();
+        }
+
+        graphics.generateTexture(key, size, size);
+        graphics.destroy();
     }
 
     /**

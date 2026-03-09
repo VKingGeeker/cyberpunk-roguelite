@@ -25,6 +25,9 @@ export default class Player extends Phaser.GameObjects.Sprite {
     private isDead: boolean = false;
     private invincibleTime: number = 0; // 无敌时间（毫秒）
 
+    // 临时属性提升
+    private temporaryBoosts: Map<string, { value: number; endTime: number }> = new Map();
+
     // 被动技能冷却
     private passiveSkillCooldowns: Map<string, number> = new Map();
 
@@ -465,10 +468,83 @@ export default class Player extends Phaser.GameObjects.Sprite {
     }
 
     /**
-     * 获取属性
+     * 获取属性（包含临时加成）
      */
     public getStats(): CombatStats {
-        return { ...this.stats };
+        const now = this.scene.time.now;
+        const result = { ...this.stats };
+
+        // 应用临时加成
+        this.temporaryBoosts.forEach((boost, key) => {
+            if (now < boost.endTime) {
+                switch (key) {
+                    case 'attack':
+                        result.attack += boost.value;
+                        break;
+                    case 'defense':
+                        result.defense += boost.value;
+                        break;
+                    case 'speed':
+                        result.moveSpeed *= (1 + boost.value);
+                        break;
+                    case 'crit':
+                        result.critRate += boost.value;
+                        break;
+                }
+            }
+        });
+
+        return result;
+    }
+
+    /**
+     * 应用临时属性提升
+     */
+    public applyTemporaryBoost(type: string, value: number, duration: number): void {
+        const endTime = this.scene.time.now + duration;
+        this.temporaryBoosts.set(type, { value, endTime });
+
+        // 显示提升效果
+        this.showBoostEffect(type, value, duration);
+    }
+
+    /**
+     * 显示提升效果
+     */
+    private showBoostEffect(type: string, value: number, duration: number): void {
+        const colors: Record<string, number> = {
+            attack: 0xff4444,
+            defense: 0x4444ff,
+            speed: 0xffff44,
+            crit: 0xff44ff
+        };
+
+        const names: Record<string, string> = {
+            attack: '攻击力',
+            defense: '防御力',
+            speed: '速度',
+            crit: '暴击率'
+        };
+
+        const text = this.scene.add.text(this.x, this.y - 40, `${names[type]} ↑`, {
+            fontSize: '18px',
+            fontStyle: 'bold',
+            color: `#${(colors[type] || 0xffffff).toString(16).padStart(6, '0')}`,
+            fontFamily: 'Courier New, monospace',
+            stroke: '#000000',
+            strokeThickness: 2
+        });
+        text.setOrigin(0.5);
+        text.setDepth(100);
+
+        this.scene.tweens.add({
+            targets: text,
+            y: this.y - 70,
+            alpha: 0,
+            duration: 1000,
+            ease: 'Power2',
+            onComplete: () => text.destroy()
+        });
     }
 
     /**
