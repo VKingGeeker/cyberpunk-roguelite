@@ -64,37 +64,217 @@ export default class GameScene extends Phaser.Scene {
     }
 
     /**
-     * 创建地图
+     * 创建地图 - 赛博朋克风格
      */
     private createMap(): void {
         const worldWidth = GAME_CONFIG.worldWidth;
         const worldHeight = GAME_CONFIG.worldHeight;
 
-        // 创建地图背景 - 使用瓦片覆盖整个世界
+        // 创建地图背景
         const graphics = this.add.graphics();
-        graphics.fillStyle(0x0f0f1f, 1);
-        graphics.fillRect(0, 0, worldWidth, worldHeight);
-
-        // 绘制网格地板
-        graphics.lineStyle(1, 0x1a1a2e, 0.3);
-        const tileSize = GAME_CONFIG.tileSize;
         
-        for (let x = 0; x <= worldWidth; x += tileSize) {
-            graphics.moveTo(x, 0);
-            graphics.lineTo(x, worldHeight);
+        // 深色背景渐变
+        for (let y = 0; y < worldHeight; y += 4) {
+            const alpha = 0.3 + (y / worldHeight) * 0.2;
+            graphics.fillStyle(0x0a0a1a, alpha);
+            graphics.fillRect(0, y, worldWidth, 4);
         }
-        for (let y = 0; y <= worldHeight; y += tileSize) {
-            graphics.moveTo(0, y);
-            graphics.lineTo(worldWidth, y);
-        }
-        graphics.strokePath();
 
-        // 绘制边界警告区域
-        graphics.lineStyle(4, 0xff0000, 0.3);
-        graphics.strokeRect(10, 10, worldWidth - 20, worldHeight - 20);
+        // 绘制霓虹网格地板
+        this.drawNeonGrid(graphics, worldWidth, worldHeight);
+
+        // 绘制电路板纹理
+        this.drawCircuitPattern(graphics, worldWidth, worldHeight);
+
+        // 添加随机霓虹光点
+        this.addNeonLights(graphics, worldWidth, worldHeight);
+
+        // 绘制边界 - 霓虹警告区
+        this.drawNeonBorder(graphics, worldWidth, worldHeight);
 
         // 创建世界边界
         this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
+
+        // 添加扫描线效果
+        this.addScanlineEffect();
+    }
+
+    /**
+     * 绘制霓虹网格
+     */
+    private drawNeonGrid(graphics: Phaser.GameObjects.Graphics, width: number, height: number): void {
+        const gridSize = 80;
+        
+        // 主网格 - 青色霓虹
+        graphics.lineStyle(1, 0x00ffff, 0.15);
+        for (let x = 0; x <= width; x += gridSize) {
+            graphics.moveTo(x, 0);
+            graphics.lineTo(x, height);
+        }
+        for (let y = 0; y <= height; y += gridSize) {
+            graphics.moveTo(0, y);
+            graphics.lineTo(width, y);
+        }
+        graphics.strokePath();
+
+        // 次网格 - 品红色
+        graphics.lineStyle(1, 0xff00ff, 0.08);
+        const subGridSize = 20;
+        for (let x = 0; x <= width; x += subGridSize) {
+            if (x % gridSize !== 0) {
+                graphics.moveTo(x, 0);
+                graphics.lineTo(x, height);
+            }
+        }
+        for (let y = 0; y <= height; y += subGridSize) {
+            if (y % gridSize !== 0) {
+                graphics.moveTo(0, y);
+                graphics.lineTo(width, y);
+            }
+        }
+        graphics.strokePath();
+
+        // 网格交叉点发光
+        graphics.fillStyle(0x00ffff, 0.3);
+        for (let x = 0; x <= width; x += gridSize) {
+            for (let y = 0; y <= height; y += gridSize) {
+                if (Math.random() < 0.3) {
+                    graphics.fillCircle(x, y, 2);
+                }
+            }
+        }
+    }
+
+    /**
+     * 绘制电路板纹理
+     */
+    private drawCircuitPattern(graphics: Phaser.GameObjects.Graphics, width: number, height: number): void {
+        graphics.lineStyle(2, 0x0066ff, 0.2);
+        
+        // 随机电路路径
+        for (let i = 0; i < 50; i++) {
+            const startX = Phaser.Math.Between(0, width);
+            const startY = Phaser.Math.Between(0, height);
+            
+            graphics.beginPath();
+            graphics.moveTo(startX, startY);
+            
+            let currentX = startX;
+            let currentY = startY;
+            
+            // 绘制电路路径
+            for (let j = 0; j < 5; j++) {
+                const direction = Phaser.Math.Between(0, 3);
+                const length = Phaser.Math.Between(30, 100);
+                
+                switch (direction) {
+                    case 0: currentX += length; break;
+                    case 1: currentX -= length; break;
+                    case 2: currentY += length; break;
+                    case 3: currentY -= length; break;
+                }
+                
+                currentX = Phaser.Math.Clamp(currentX, 0, width);
+                currentY = Phaser.Math.Clamp(currentY, 0, height);
+                graphics.lineTo(currentX, currentY);
+            }
+            
+            graphics.strokePath();
+            
+            // 电路节点
+            graphics.fillStyle(0x00ffff, 0.4);
+            graphics.fillCircle(currentX, currentY, 3);
+        }
+    }
+
+    /**
+     * 添加霓虹光点
+     */
+    private addNeonLights(graphics: Phaser.GameObjects.Graphics, width: number, height: number): void {
+        const colors = [0x00ffff, 0xff00ff, 0xffff00, 0xff6600, 0x9900ff];
+        
+        for (let i = 0; i < 100; i++) {
+            const x = Phaser.Math.Between(50, width - 50);
+            const y = Phaser.Math.Between(50, height - 50);
+            const color = colors[Phaser.Math.Between(0, colors.length - 1)];
+            const radius = Phaser.Math.Between(10, 30);
+            
+            // 光晕
+            graphics.fillStyle(color, 0.05);
+            graphics.fillCircle(x, y, radius);
+            
+            // 中心点
+            graphics.fillStyle(color, 0.3);
+            graphics.fillCircle(x, y, 2);
+        }
+    }
+
+    /**
+     * 绘制霓虹边界
+     */
+    private drawNeonBorder(graphics: Phaser.GameObjects.Graphics, width: number, height: number): void {
+        // 外层发光
+        graphics.lineStyle(8, 0xff0066, 0.2);
+        graphics.strokeRect(15, 15, width - 30, height - 30);
+        
+        // 中层
+        graphics.lineStyle(3, 0xff0066, 0.5);
+        graphics.strokeRect(10, 10, width - 20, height - 20);
+        
+        // 内层
+        graphics.lineStyle(1, 0xff0066, 0.8);
+        graphics.strokeRect(5, 5, width - 10, height - 10);
+        
+        // 角落装饰
+        const cornerSize = 40;
+        graphics.lineStyle(2, 0xff0066, 1);
+        
+        // 左上
+        graphics.moveTo(5, cornerSize);
+        graphics.lineTo(5, 5);
+        graphics.lineTo(cornerSize, 5);
+        
+        // 右上
+        graphics.moveTo(width - cornerSize, 5);
+        graphics.lineTo(width - 5, 5);
+        graphics.lineTo(width - 5, cornerSize);
+        
+        // 左下
+        graphics.moveTo(5, height - cornerSize);
+        graphics.lineTo(5, height - 5);
+        graphics.lineTo(cornerSize, height - 5);
+        
+        // 右下
+        graphics.moveTo(width - cornerSize, height - 5);
+        graphics.lineTo(width - 5, height - 5);
+        graphics.lineTo(width - 5, height - cornerSize);
+        
+        graphics.strokePath();
+    }
+
+    /**
+     * 添加扫描线效果
+     */
+    private addScanlineEffect(): void {
+        // 创建扫描线纹理
+        const scanlineGraphics = this.add.graphics();
+        scanlineGraphics.fillStyle(0x00ffff, 0.03);
+        
+        for (let y = 0; y < GAME_CONFIG.worldHeight; y += 4) {
+            scanlineGraphics.fillRect(0, y, GAME_CONFIG.worldWidth, 2);
+        }
+        
+        scanlineGraphics.setDepth(1000);
+        scanlineGraphics.setAlpha(0.5);
+        
+        // 扫描线移动动画
+        this.tweens.add({
+            targets: scanlineGraphics,
+            alpha: { from: 0.3, to: 0.6 },
+            duration: 2000,
+            yoyo: true,
+            repeat: -1
+        });
     }
 
     /**

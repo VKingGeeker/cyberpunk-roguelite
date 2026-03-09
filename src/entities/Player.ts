@@ -313,28 +313,217 @@ export default class Player extends Phaser.GameObjects.Sprite {
     }
 
     /**
-     * 创建技能特效
+     * 创建技能特效 - 赛博朋克霓虹风格
      */
     private createSkillEffect(type: string, range: number): void {
-        const graphics = this.scene.add.graphics();
-        graphics.lineStyle(3, 0x00ffff, 0.8);
-
         if (type === 'slash') {
-            graphics.strokeCircle(this.x, this.y, range);
+            // 能量斩 - 青色霓虹弧光
+            this.createNeonSlashEffect(range);
         } else if (type === 'spin') {
-            graphics.strokeCircle(this.x, this.y, range);
+            // 旋风斩 - 品红霓虹漩涡
+            this.createNeonSpinEffect(range);
         } else if (type === 'dash') {
-            graphics.fillStyle(0x00ffff, 0.3);
-            graphics.fillCircle(this.x, this.y, range);
+            // 闪现突袭 - 黄色闪电残影
+            this.createNeonDashEffect(range);
+        }
+    }
+
+    /**
+     * 创建霓虹斩击特效
+     */
+    private createNeonSlashEffect(range: number): void {
+        // 主弧光
+        const arc = this.scene.add.graphics();
+        arc.lineStyle(4, 0x00ffff, 1);
+        arc.beginPath();
+        arc.arc(this.x, this.y, range, -Math.PI * 0.75, Math.PI * 0.25, false);
+        arc.strokePath();
+
+        // 外层光晕
+        const glow = this.scene.add.graphics();
+        glow.lineStyle(8, 0x00ffff, 0.3);
+        glow.beginPath();
+        glow.arc(this.x, this.y, range + 5, -Math.PI * 0.75, Math.PI * 0.25, false);
+        glow.strokePath();
+
+        // 能量粒子
+        for (let i = 0; i < 8; i++) {
+            const angle = -Math.PI * 0.75 + (Math.PI * i) / 7;
+            const particle = this.scene.add.circle(
+                this.x + Math.cos(angle) * range,
+                this.y + Math.sin(angle) * range,
+                3,
+                0x00ffff,
+                1
+            );
+            
+            this.scene.tweens.add({
+                targets: particle,
+                alpha: 0,
+                scale: 2,
+                duration: 400,
+                onComplete: () => particle.destroy()
+            });
         }
 
+        // 淡出动画
         this.scene.tweens.add({
-            targets: graphics,
+            targets: [arc, glow],
             alpha: 0,
-            scale: 1.5,
-            duration: 300,
-            onComplete: () => graphics.destroy()
+            scale: 1.3,
+            duration: 400,
+            onComplete: () => {
+                arc.destroy();
+                glow.destroy();
+            }
         });
+
+        // 屏幕震动
+        this.scene.cameras.main.shake(100, 0.01);
+    }
+
+    /**
+     * 创建霓虹旋风特效
+     */
+    private createNeonSpinEffect(range: number): void {
+        // 多层旋转光环
+        const layers = [
+            { radius: range * 0.6, color: 0xff00ff, alpha: 0.8, width: 3 },
+            { radius: range * 0.8, color: 0xff44ff, alpha: 0.6, width: 4 },
+            { radius: range, color: 0xff88ff, alpha: 0.4, width: 5 }
+        ];
+
+        layers.forEach((layer, index) => {
+            const ring = this.scene.add.graphics();
+            ring.lineStyle(layer.width, layer.color, layer.alpha);
+            ring.strokeCircle(this.x, this.y, layer.radius);
+
+            this.scene.tweens.add({
+                targets: ring,
+                rotation: Math.PI * 2 * (index % 2 === 0 ? 1 : -1),
+                alpha: 0,
+                scale: 1.5,
+                duration: 500,
+                onComplete: () => ring.destroy()
+            });
+        });
+
+        // 中心爆发
+        const burst = this.scene.add.graphics();
+        burst.fillStyle(0xff00ff, 0.5);
+        burst.fillCircle(this.x, this.y, 20);
+        
+        this.scene.tweens.add({
+            targets: burst,
+            alpha: 0,
+            scale: 3,
+            duration: 400,
+            onComplete: () => burst.destroy()
+        });
+
+        // 能量线条
+        for (let i = 0; i < 12; i++) {
+            const angle = (Math.PI * 2 * i) / 12;
+            const line = this.scene.add.graphics();
+            line.lineStyle(2, 0xff00ff, 0.8);
+            line.moveTo(this.x, this.y);
+            line.lineTo(this.x + Math.cos(angle) * range, this.y + Math.sin(angle) * range);
+            line.strokePath();
+
+            this.scene.tweens.add({
+                targets: line,
+                alpha: 0,
+                duration: 300,
+                delay: i * 20,
+                onComplete: () => line.destroy()
+            });
+        }
+
+        // 屏幕震动
+        this.scene.cameras.main.shake(150, 0.015);
+    }
+
+    /**
+     * 创建霓虹闪现特效
+     */
+    private createNeonDashEffect(range: number): void {
+        // 闪电残影
+        const lightning = this.scene.add.graphics();
+        lightning.lineStyle(3, 0xffff00, 1);
+
+        // 绘制闪电形状
+        const points: { x: number; y: number }[] = [];
+        const segments = 8;
+        for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const offsetX = (Math.random() - 0.5) * 20;
+            const offsetY = (Math.random() - 0.5) * 20;
+            points.push({
+                x: this.x + offsetX + Math.sin(t * Math.PI * 4) * 5,
+                y: this.y + offsetY - t * 30
+            });
+        }
+
+        lightning.beginPath();
+        lightning.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+            lightning.lineTo(points[i].x, points[i].y);
+        }
+        lightning.strokePath();
+
+        // 光晕
+        const glow = this.scene.add.graphics();
+        glow.fillStyle(0xffff00, 0.3);
+        glow.fillCircle(this.x, this.y, range * 2);
+
+        // 冲击波
+        const wave = this.scene.add.graphics();
+        wave.lineStyle(4, 0xffff00, 0.8);
+        wave.strokeCircle(this.x, this.y, 10);
+
+        this.scene.tweens.add({
+            targets: wave,
+            scale: 8,
+            alpha: 0,
+            duration: 500,
+            onComplete: () => wave.destroy()
+        });
+
+        // 粒子爆发
+        for (let i = 0; i < 16; i++) {
+            const angle = (Math.PI * 2 * i) / 16;
+            const particle = this.scene.add.circle(
+                this.x,
+                this.y,
+                4,
+                0xffff00,
+                1
+            );
+
+            this.scene.tweens.add({
+                targets: particle,
+                x: this.x + Math.cos(angle) * 60,
+                y: this.y + Math.sin(angle) * 60,
+                alpha: 0,
+                scale: 0,
+                duration: 400,
+                onComplete: () => particle.destroy()
+            });
+        }
+
+        // 淡出
+        this.scene.tweens.add({
+            targets: [lightning, glow],
+            alpha: 0,
+            duration: 300,
+            onComplete: () => {
+                lightning.destroy();
+                glow.destroy();
+            }
+        });
+
+        // 屏幕震动
+        this.scene.cameras.main.shake(80, 0.02);
     }
 
     /**

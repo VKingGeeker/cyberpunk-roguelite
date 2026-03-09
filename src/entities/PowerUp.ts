@@ -131,15 +131,12 @@ export default class PowerUp extends Phaser.GameObjects.Sprite {
      * 设置外观
      */
     private setupAppearance(): void {
-        // 设置颜色
-        this.setTint(this.config.color);
-
         // 根据稀有度设置大小
         const scale = {
-            [PowerUpRarity.COMMON]: 0.6,
-            [PowerUpRarity.RARE]: 0.8,
-            [PowerUpRarity.EPIC]: 1.0,
-            [PowerUpRarity.LEGENDARY]: 1.2
+            [PowerUpRarity.COMMON]: 0.7,
+            [PowerUpRarity.RARE]: 0.9,
+            [PowerUpRarity.EPIC]: 1.1,
+            [PowerUpRarity.LEGENDARY]: 1.3
         };
 
         this.setScale(scale[this.config.rarity]);
@@ -148,6 +145,34 @@ export default class PowerUp extends Phaser.GameObjects.Sprite {
         const body = this.body as Phaser.Physics.Arcade.Body;
         body.setSize(24, 24);
         body.setOffset(4, 4);
+
+        // 添加发光效果
+        this.createGlowEffect();
+    }
+
+    /**
+     * 创建发光效果
+     */
+    private createGlowEffect(): void {
+        // 外发光
+        const glow = this.scene.add.graphics();
+        glow.fillStyle(this.config.color, 0.15);
+        glow.fillCircle(0, 0, 20);
+        glow.x = this.x;
+        glow.y = this.y;
+
+        // 保存引用以便后续销毁
+        this.setData('glow', glow);
+
+        // 发光脉冲动画
+        this.scene.tweens.add({
+            targets: glow,
+            alpha: { from: 0.15, to: 0.3 },
+            scale: { from: 1, to: 1.2 },
+            duration: 600,
+            yoyo: true,
+            repeat: -1
+        });
     }
 
     /**
@@ -264,6 +289,15 @@ export default class PowerUp extends Phaser.GameObjects.Sprite {
             this.pulseTween.stop();
         }
 
+        // 销毁发光效果
+        const glow = this.getData('glow') as Phaser.GameObjects.Graphics;
+        if (glow) {
+            glow.destroy();
+        }
+
+        // 创建拾取粒子效果
+        this.createCollectParticles();
+
         // 拾取动画
         this.scene.tweens.add({
             targets: this,
@@ -273,5 +307,34 @@ export default class PowerUp extends Phaser.GameObjects.Sprite {
             ease: 'Power2',
             onComplete: () => this.destroy()
         });
+    }
+
+    /**
+     * 创建拾取粒子效果
+     */
+    private createCollectParticles(): void {
+        const colors = [this.config.color, 0xffffff];
+        
+        for (let i = 0; i < 8; i++) {
+            const angle = (Math.PI * 2 * i) / 8;
+            const particle = this.scene.add.circle(
+                this.x,
+                this.y,
+                3,
+                colors[i % colors.length],
+                1
+            );
+
+            this.scene.tweens.add({
+                targets: particle,
+                x: this.x + Math.cos(angle) * 30,
+                y: this.y + Math.sin(angle) * 30,
+                alpha: 0,
+                scale: 0,
+                duration: 300,
+                ease: 'Power2',
+                onComplete: () => particle.destroy()
+            });
+        }
     }
 }

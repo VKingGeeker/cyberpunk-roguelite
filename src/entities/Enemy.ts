@@ -77,24 +77,46 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
     }
 
     /**
-     * 设置敌人外观
+     * 设置敌人外观 - 赛博朋克风格
      */
     private setupEnemyAppearance(): void {
         // 根据类型设置不同颜色和大小
         switch (this.enemyType) {
             case EnemyType.COMMON:
-                this.setTint(0x888888); // 灰色
-                this.setScale(0.8);
+                this.setScale(0.9);
+                this.createNeonGlow(0xff6600);
                 break;
             case EnemyType.ELITE:
-                this.setTint(0x4444ff); // 蓝色
-                this.setScale(1.0);
+                this.setScale(1.1);
+                this.createNeonGlow(0x6600ff);
                 break;
             case EnemyType.BOSS:
-                this.setTint(0xff4444); // 红色
-                this.setScale(1.5);
+                this.setScale(1.4);
+                this.createNeonGlow(0xff0066);
                 break;
         }
+    }
+
+    /**
+     * 创建霓虹发光效果
+     */
+    private createNeonGlow(color: number): void {
+        // 发光效果
+        const glow = this.scene.add.graphics();
+        glow.fillStyle(color, 0.1);
+        glow.fillCircle(0, 0, 30);
+        glow.x = this.x;
+        glow.y = this.y;
+        this.setData('glow', glow);
+
+        // 发光脉冲动画
+        this.scene.tweens.add({
+            targets: glow,
+            alpha: { from: 0.1, to: 0.2 },
+            duration: 800,
+            yoyo: true,
+            repeat: -1
+        });
     }
 
     /**
@@ -297,22 +319,105 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
     }
 
     /**
-     * 死亡
+     * 死亡 - 赛博朋克爆炸效果
      */
     private die(): void {
+        // 销毁发光效果
+        const glow = this.getData('glow') as Phaser.GameObjects.Graphics;
+        if (glow) {
+            glow.destroy();
+        }
+
         // 触发敌人被击败事件
         this.scene.events.emit('enemyDefeated', this);
+
+        // 创建死亡爆炸效果
+        this.createDeathExplosion();
 
         // 播放死亡动画
         this.scene.tweens.add({
             targets: this,
-            scale: { from: this.scale, to: 0 },
-            alpha: { from: 1, to: 0 },
-            duration: 500,
+            scale: 0,
+            alpha: 0,
+            duration: 300,
             ease: 'Power2',
             onComplete: () => {
                 this.destroy();
             }
+        });
+    }
+
+    /**
+     * 创建死亡爆炸效果
+     */
+    private createDeathExplosion(): void {
+        // 确定颜色
+        let color: number;
+        switch (this.enemyType) {
+            case EnemyType.COMMON:
+                color = 0xff6600;
+                break;
+            case EnemyType.ELITE:
+                color = 0x6600ff;
+                break;
+            case EnemyType.BOSS:
+                color = 0xff0066;
+                break;
+            default:
+                color = 0xff6600;
+        }
+
+        // 爆炸光环
+        const ring = this.scene.add.graphics();
+        ring.lineStyle(3, color, 1);
+        ring.strokeCircle(0, 0, 10);
+        ring.x = this.x;
+        ring.y = this.y;
+
+        this.scene.tweens.add({
+            targets: ring,
+            scale: 3,
+            alpha: 0,
+            duration: 400,
+            onComplete: () => ring.destroy()
+        });
+
+        // 粒子爆炸
+        for (let i = 0; i < 12; i++) {
+            const angle = (Math.PI * 2 * i) / 12;
+            const particle = this.scene.add.circle(
+                this.x,
+                this.y,
+                4,
+                color,
+                1
+            );
+
+            this.scene.tweens.add({
+                targets: particle,
+                x: this.x + Math.cos(angle) * 50,
+                y: this.y + Math.sin(angle) * 50,
+                alpha: 0,
+                scale: 0,
+                duration: 400,
+                ease: 'Power2',
+                onComplete: () => particle.destroy()
+            });
+        }
+
+        // 闪光
+        const flash = this.scene.add.graphics();
+        flash.fillStyle(0xffffff, 0.8);
+        flash.fillCircle(0, 0, 20);
+        flash.x = this.x;
+        flash.y = this.y;
+
+        this.scene.tweens.add({
+            targets: flash,
+            alpha: 0,
+            scale: 2,
+            duration: 200,
+            onComplete: () => flash.destroy()
         });
     }
 
