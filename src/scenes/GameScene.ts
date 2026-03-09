@@ -326,7 +326,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     /**
-     * 生成随机道具
+     * 生成随机道具 - 经验:其他 = 9:1
      */
     private spawnRandomPowerUp(): void {
         if (this.isGameOver) return;
@@ -339,9 +339,21 @@ export default class GameScene extends Phaser.Scene {
         const x = Phaser.Math.Between(margin, worldWidth - margin);
         const y = Phaser.Math.Between(margin, worldHeight - margin);
 
-        // 随机类型
-        const types = Object.values(PowerUpType);
-        const type = types[Phaser.Math.Between(0, types.length - 1)];
+        // 类型选择：90%概率是经验，10%概率是其他
+        let type: PowerUpType;
+        if (Math.random() < 0.9) {
+            type = PowerUpType.EXPERIENCE;
+        } else {
+            // 其他类型随机选择
+            const otherTypes = [
+                PowerUpType.HEALTH,
+                PowerUpType.ATTACK_BOOST,
+                PowerUpType.DEFENSE_BOOST,
+                PowerUpType.SPEED_BOOST,
+                PowerUpType.CRIT_BOOST
+            ];
+            type = otherTypes[Phaser.Math.Between(0, otherTypes.length - 1)];
+        }
 
         // 随机稀有度（加权）
         const rand = Math.random();

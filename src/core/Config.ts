@@ -123,7 +123,12 @@ export enum SkillType {
     DASH = 'dash',
     HEAL = 'heal',
     SHIELD = 'shield',
-    BLINK = 'blink'
+    BLINK = 'blink',
+    CHAIN_LIGHTNING = 'chain_lightning',
+    LASER_BEAM = 'laser_beam',
+    EMP_BURST = 'emp_burst',
+    OVERDRIVE = 'overdrive',
+    HOLOGRAM = 'hologram'
 }
 
 /**

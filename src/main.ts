@@ -11,6 +11,7 @@ import BootScene from './scenes/BootScene';
 import MenuScene from './scenes/MenuScene';
 import GameScene from './scenes/GameScene';
 import UIScene from './scenes/UIScene';
+import SkillSelectScene from './scenes/SkillSelectScene';
 
 /**
  * 游戏主类
@@ -41,7 +42,7 @@ class CyberpunkRogueliteGame {
                     debug: false
                 }
             },
-            scene: [BootScene, MenuScene, GameScene, UIScene],
+            scene: [BootScene, MenuScene, GameScene, UIScene, SkillSelectScene],
             callbacks: {
                 preBoot: () => {
                     this.onPreBoot();

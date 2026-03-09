@@ -46,6 +46,7 @@ export default class UIScene extends Phaser.Scene {
         // 监听玩家事件
         this.scene.get('GameScene').events.on('updateHealth', this.updateHealth, this);
         this.scene.get('GameScene').events.on('updateExperience', this.updateExperience, this);
+        this.scene.get('GameScene').events.on('skill-changed', this.updateSkillDisplay, this);
     }
 
     /**
@@ -126,70 +127,135 @@ export default class UIScene extends Phaser.Scene {
     }
 
     /**
-     * 创建技能栏（被动技能显示）- 赛博朋克风格
+     * 创建技能栏（被动技能显示）- 动态显示已学技能
      */
     private createSkillBar(): void {
         const startX = 20;
         const y = this.cameras.main.height - 130;
-        const gap = 15;
         const size = GAME_CONFIG.ui.skillIconSize;
-
-        const skillData = [
-            { key: 'slash', name: '能量斩', cd: '2s', color: 0x00ffff },
-            { key: 'spin', name: '旋风斩', cd: '5s', color: 0xff00ff },
-            { key: 'dash', name: '闪现突袭', cd: '8s', color: 0xffff00 }
-        ];
+        const maxSlots = 5; // 最多显示5个技能
 
         // 技能栏背景
         const bg = this.add.graphics();
         bg.fillStyle(0x0a0a1a, 0.9);
-        bg.fillRoundedRect(startX - 10, y - size/2 - 10, size * 3 + gap * 2 + 20, size + 80, 8);
+        bg.fillRoundedRect(startX - 10, y - size/2 - 10, size * maxSlots + 20 + (maxSlots - 1) * 10, size + 60, 8);
         bg.lineStyle(2, 0x00ffff, 0.5);
-        bg.strokeRoundedRect(startX - 10, y - size/2 - 10, size * 3 + gap * 2 + 20, size + 80, 8);
+        bg.strokeRoundedRect(startX - 10, y - size/2 - 10, size * maxSlots + 20 + (maxSlots - 1) * 10, size + 60, 8);
 
         // 标题
-        const title = this.add.text(startX + (size * 3 + gap * 2) / 2, y - size/2 - 5, 'PASSIVE SKILLS', {
+        const title = this.add.text(startX + (size * maxSlots + (maxSlots - 1) * 10) / 2, y - size/2 - 5, 'SKILLS', {
             fontSize: '10px',
             color: '#00ffff',
             fontFamily: 'Courier New, monospace'
         });
         title.setOrigin(0.5, 0);
 
-        for (let i = 0; i < skillData.length; i++) {
-            const skill = skillData[i];
-            const x = startX + i * (size + gap);
+        // 创建占位技能槽
+        for (let i = 0; i < maxSlots; i++) {
+            const x = startX + i * (size + 10);
+            
+            // 空技能槽背景
+            const slotBg = this.add.graphics();
+            slotBg.fillStyle(0x1a1a2e, 0.5);
+            slotBg.fillRoundedRect(x, y - size/2, size, size, 6);
+            slotBg.lineStyle(1, 0x333344, 0.5);
+            slotBg.strokeRoundedRect(x, y - size/2, size, size, 6);
+        }
+
+        // 初始更新技能显示
+        this.updateSkillDisplay();
+    }
+
+    /**
+     * 更新技能显示
+     */
+    public updateSkillDisplay(): void {
+        if (!this.player) return;
+
+        const ownedSkills = this.player.getOwnedSkills();
+        const startX = 20;
+        const y = this.cameras.main.height - 130;
+        const size = GAME_CONFIG.ui.skillIconSize;
+
+        // 清除旧图标
+        this.skillIcons.forEach(icon => icon.destroy());
+        this.skillIcons = [];
+
+        // 技能名称到图标键的映射
+        const iconMap: Record<string, string> = {
+            'skill_neon_slash': 'icon_slash',
+            'skill_plasma_spin': 'icon_spin',
+            'skill_chain_lightning': 'icon_lightning',
+            'skill_laser_beam': 'icon_laser',
+            'skill_nanobot_shield': 'icon_shield',
+            'skill_emp_burst': 'icon_emp',
+            'skill_overdrive': 'icon_overdrive',
+            'skill_hologram': 'icon_hologram'
+        };
+
+        // 技能名称显示
+        const nameMap: Record<string, string> = {
+            'skill_neon_slash': '霓虹斩',
+            'skill_plasma_spin': '等离子',
+            'skill_chain_lightning': '闪电链',
+            'skill_laser_beam': '激光',
+            'skill_nanobot_shield': '护盾',
+            'skill_emp_burst': 'EMP',
+            'skill_overdrive': '超频',
+            'skill_hologram': '幻影'
+        };
+
+        // 技能颜色
+        const colorMap: Record<string, number> = {
+            'skill_neon_slash': 0x00ffff,
+            'skill_plasma_spin': 0xff00ff,
+            'skill_chain_lightning': 0xffff00,
+            'skill_laser_beam': 0xff4400,
+            'skill_nanobot_shield': 0x44ff44,
+            'skill_emp_burst': 0x4488ff,
+            'skill_overdrive': 0xff8800,
+            'skill_hologram': 0xaa44ff
+        };
+
+        let index = 0;
+        ownedSkills.forEach((data, skillId) => {
+            if (index >= 5) return; // 最多显示5个
+
+            const x = startX + index * (size + 10);
+            const iconKey = iconMap[skillId] || 'icon_slash';
+            const color = colorMap[skillId] || 0x00ffff;
 
             // 技能槽背景
             const slotBg = this.add.graphics();
             slotBg.fillStyle(0x1a1a2e, 1);
-            slotBg.fillRoundedRect(x - 2, y - size/2 - 2, size + 4, size + 4, 6);
-            slotBg.lineStyle(2, skill.color, 0.8);
-            slotBg.strokeRoundedRect(x - 2, y - size/2 - 2, size + 4, size + 4, 6);
+            slotBg.fillRoundedRect(x, y - size/2, size, size, 6);
+            slotBg.lineStyle(2, color, 0.8);
+            slotBg.strokeRoundedRect(x, y - size/2, size, size, 6);
+
+            // 等级指示器
+            const level = data.skill.level;
+            for (let i = 0; i < level; i++) {
+                slotBg.fillStyle(color, 0.8);
+                slotBg.fillCircle(x + 8 + i * 8, y + size/2 - 8, 3);
+            }
 
             // 技能图标
-            const icon = this.add.image(x + size/2, y, `icon_${skill.key}`);
-            icon.setDisplaySize(size - 4, size - 4);
+            const icon = this.add.image(x + size/2, y, iconKey);
+            icon.setDisplaySize(size - 8, size - 8);
             icon.setOrigin(0.5);
 
             // 技能名称
-            const nameText = this.add.text(x + size/2, y + size/2 + 10, skill.name, {
-                fontSize: '11px',
+            const nameText = this.add.text(x + size/2, y + size/2 + 10, nameMap[skillId] || '技能', {
+                fontSize: '10px',
                 fontStyle: 'bold',
-                color: `#${skill.color.toString(16).padStart(6, '0')}`,
+                color: `#${color.toString(16).padStart(6, '0')}`,
                 fontFamily: 'Courier New, monospace'
             });
             nameText.setOrigin(0.5);
 
-            // 冷却提示
-            const cdText = this.add.text(x + size/2, y + size/2 + 26, `CD: ${skill.cd}`, {
-                fontSize: '9px',
-                color: '#888888',
-                fontFamily: 'Courier New, monospace'
-            });
-            cdText.setOrigin(0.5);
-
             this.skillIcons.push(icon);
-        }
+            index++;
+        });
     }
 
     /**

@@ -110,6 +110,9 @@ export interface SkillEffect {
     healValue?: number;     // 治疗量
     shieldValue?: number;   // 护盾值
     manaCost?: number;      // 法力消耗
+    chains?: number;        // 连锁次数（连锁闪电）
+    stunDuration?: number;  // 眩晕时间（秒）
+    speedBoost?: number;    // 速度加成
 }
 
 /**
@@ -124,7 +127,8 @@ export interface Skill {
     manaCost: number;       // 法力消耗
     cooldown: number;       // 冷却时间（秒）
     lastUsedTime: number;   // 上次使用时间
-    level: number;          // 技能等级（0-3）
+    level: number;          // 技能等级（0-5）
+    maxLevel?: number;      // 最大等级
     effect: SkillEffect;    // 技能效果
 }
 

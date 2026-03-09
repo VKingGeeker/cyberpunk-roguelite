@@ -534,10 +534,14 @@ export default class BootScene extends Phaser.Scene {
      */
     private createCyberSkillIcons(): void {
         const skills = [
-            { key: 'icon_slash', color: 0x00ffff, name: '能量斩' },
-            { key: 'icon_spin', color: 0xff00ff, name: '旋风斩' },
-            { key: 'icon_dash', color: 0xffff00, name: '闪现突袭' },
-            { key: 'icon_heal', color: 0x44ff44, name: '纳米修复' }
+            { key: 'icon_slash', color: 0x00ffff, name: '霓虹斩击' },
+            { key: 'icon_spin', color: 0xff00ff, name: '等离子漩涡' },
+            { key: 'icon_lightning', color: 0xffff00, name: '连锁闪电' },
+            { key: 'icon_laser', color: 0xff4400, name: '激光射线' },
+            { key: 'icon_shield', color: 0x44ff44, name: '纳米护盾' },
+            { key: 'icon_emp', color: 0x4488ff, name: 'EMP冲击' },
+            { key: 'icon_overdrive', color: 0xff8800, name: '超频驱动' },
+            { key: 'icon_hologram', color: 0xaa44ff, name: '全息幻影' }
         ];
 
         for (const skill of skills) {
@@ -571,45 +575,110 @@ export default class BootScene extends Phaser.Scene {
         graphics.lineStyle(3, color, 1);
         graphics.fillStyle(color, 0.8);
 
-        if (name === '能量斩') {
-            // 斩击线条
-            graphics.moveTo(center - 10, center + 10);
-            graphics.lineTo(center + 10, center - 10);
+        if (name === '霓虹斩击') {
+            // 斩击弧线
+            graphics.beginPath();
+            graphics.arc(center, center, 12, -Math.PI * 0.6, Math.PI * 0.1, false);
             graphics.strokePath();
-            // 能量波动
-            graphics.lineStyle(1, 0xffffff, 0.5);
-            graphics.moveTo(center - 6, center + 6);
-            graphics.lineTo(center + 6, center - 6);
-            graphics.strokePath();
-        } else if (name === '旋风斩') {
+            // 能量点
+            graphics.fillStyle(color, 1);
+            graphics.fillCircle(center - 8, center - 8, 3);
+            graphics.fillCircle(center + 10, center + 5, 2);
+        } else if (name === '等离子漩涡') {
             // 旋转能量
             graphics.strokeCircle(center, center, 10);
             graphics.lineStyle(2, color, 0.6);
             graphics.strokeCircle(center, center, 6);
             graphics.fillStyle(color, 1);
             graphics.fillCircle(center, center, 3);
-        } else if (name === '闪现突袭') {
-            // 闪电箭头
-            graphics.moveTo(center + 12, center);
-            graphics.lineTo(center - 8, center);
+            // 旋转线条
+            graphics.lineStyle(2, color, 0.8);
+            for (let i = 0; i < 4; i++) {
+                const angle = (Math.PI * 2 * i) / 4;
+                graphics.moveTo(center + Math.cos(angle) * 6, center + Math.sin(angle) * 6);
+                graphics.lineTo(center + Math.cos(angle) * 14, center + Math.sin(angle) * 14);
+            }
+            graphics.strokePath();
+        } else if (name === '连锁闪电') {
+            // 闪电链
+            graphics.moveTo(center - 12, center);
             graphics.lineTo(center - 4, center - 6);
-            graphics.moveTo(center - 8, center);
-            graphics.lineTo(center - 4, center + 6);
+            graphics.lineTo(center + 2, center + 4);
+            graphics.lineTo(center + 12, center - 2);
             graphics.strokePath();
-            // 残影
-            graphics.lineStyle(2, color, 0.4);
-            graphics.moveTo(center + 6, center - 4);
-            graphics.lineTo(center + 2, center);
-            graphics.lineTo(center + 6, center + 4);
+            // 分支
+            graphics.lineStyle(2, color, 0.6);
+            graphics.moveTo(center - 4, center - 6);
+            graphics.lineTo(center - 8, center - 12);
+            graphics.moveTo(center + 2, center + 4);
+            graphics.lineTo(center + 6, center + 10);
             graphics.strokePath();
-        } else if (name === '纳米修复') {
-            // 纳米修复 - 数据流十字
-            graphics.fillRect(center - 2, center - 10, 4, 20);
-            graphics.fillRect(center - 10, center - 2, 20, 4);
-            // 数据点
-            graphics.fillStyle(0xffffff, 0.8);
-            graphics.fillCircle(center - 6, center - 6, 2);
-            graphics.fillCircle(center + 6, center + 6, 2);
+        } else if (name === '激光射线') {
+            // 激光束
+            graphics.moveTo(center - 14, center);
+            graphics.lineTo(center + 14, center);
+            graphics.strokePath();
+            // 光晕
+            graphics.fillStyle(color, 0.5);
+            graphics.fillRect(center - 12, center - 3, 24, 6);
+            // 端点
+            graphics.fillStyle(0xffffff, 1);
+            graphics.fillCircle(center - 12, center, 4);
+            graphics.fillCircle(center + 12, center, 4);
+        } else if (name === '纳米护盾') {
+            // 护盾形状
+            graphics.beginPath();
+            graphics.moveTo(center, center - 12);
+            graphics.lineTo(center + 10, center - 6);
+            graphics.lineTo(center + 10, center + 4);
+            graphics.lineTo(center, center + 12);
+            graphics.lineTo(center - 10, center + 4);
+            graphics.lineTo(center - 10, center - 6);
+            graphics.closePath();
+            graphics.fillPath();
+            // 中心十字
+            graphics.lineStyle(2, 0xffffff, 0.8);
+            graphics.moveTo(center, center - 6);
+            graphics.lineTo(center, center + 6);
+            graphics.moveTo(center - 6, center);
+            graphics.lineTo(center + 6, center);
+            graphics.strokePath();
+        } else if (name === 'EMP冲击') {
+            // 冲击波纹
+            graphics.strokeCircle(center, center, 10);
+            graphics.lineStyle(2, color, 0.6);
+            graphics.strokeCircle(center, center, 14);
+            graphics.lineStyle(1, color, 0.3);
+            graphics.strokeCircle(center, center, 18);
+            // 中心
+            graphics.fillStyle(color, 1);
+            graphics.fillCircle(center, center, 4);
+        } else if (name === '超频驱动') {
+            // 速度箭头
+            graphics.moveTo(center - 10, center);
+            graphics.lineTo(center + 10, center);
+            graphics.lineTo(center + 4, center - 6);
+            graphics.moveTo(center + 10, center);
+            graphics.lineTo(center + 4, center + 6);
+            graphics.strokePath();
+            // 速度线
+            graphics.lineStyle(2, color, 0.5);
+            graphics.moveTo(center - 8, center - 6);
+            graphics.lineTo(center - 2, center - 6);
+            graphics.moveTo(center - 8, center + 6);
+            graphics.lineTo(center - 2, center + 6);
+            graphics.strokePath();
+        } else if (name === '全息幻影') {
+            // 主体
+            graphics.fillStyle(color, 0.6);
+            graphics.fillCircle(center - 5, center, 8);
+            graphics.fillStyle(color, 0.3);
+            graphics.fillCircle(center + 7, center, 6);
+            // 连接线
+            graphics.lineStyle(1, color, 0.5);
+            graphics.moveTo(center - 5, center);
+            graphics.lineTo(center + 7, center);
+            graphics.strokePath();
         }
 
         graphics.generateTexture(key, size, size);
