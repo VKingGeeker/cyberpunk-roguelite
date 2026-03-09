@@ -4,9 +4,13 @@
  */
 
 export const GAME_CONFIG = {
-    // 屏幕配置
+    // 屏幕配置（游戏窗口大小）
     width: 1280,
     height: 720,
+
+    // 世界配置（实际地图大小）
+    worldWidth: 3200,
+    worldHeight: 2400,
 
     // 瓦片配置
     tileSize: 32,
@@ -29,11 +33,13 @@ export const GAME_CONFIG = {
     // 关卡配置
     level: {
         duration: 600, // 10分钟（秒）
-        width: 50,     // 地图宽度（瓦片数）
-        height: 50,    // 地图高度（瓦片数）
+        width: 100,     // 地图宽度（瓦片数）
+        height: 75,    // 地图高度（瓦片数）
         enemyCount: 10,
         eliteCount: 1,
-        enemyRespawnTime: 10 // 敌人重生时间（秒）
+        enemyRespawnTime: 10, // 敌人重生时间（秒）
+        enemySpawnInterval: 3000, // 敌人生成间隔（毫秒）
+        maxEnemies: 20 // 最大敌人数量
     },
 
     // 合成配置

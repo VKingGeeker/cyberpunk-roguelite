@@ -21,6 +21,7 @@ export default class Player extends Phaser.GameObjects.Sprite {
     private experience: number = 0;
     private maxExperience: number = 100;
     private skillPoints: number = 0;
+    private killCount: number = 0;
 
     // 临时状态
     private tempShield: number = 0;
@@ -561,6 +562,20 @@ export default class Player extends Phaser.GameObjects.Sprite {
      */
     public getSkillPoints(): number {
         return this.skillPoints;
+    }
+
+    /**
+     * 获取击杀数
+     */
+    public getKillCount(): number {
+        return this.killCount;
+    }
+
+    /**
+     * 增加击杀数
+     */
+    public addKill(): void {
+        this.killCount++;
     }
 
     /**

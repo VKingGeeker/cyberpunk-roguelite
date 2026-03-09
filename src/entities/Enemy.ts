@@ -5,17 +5,18 @@
 
 import Phaser from 'phaser';
 import { CombatStats, CombatState, EnemyType } from '../core/Types';
-import { getEnemyTemplate, calculateEnemyStats, rollLoot } from '../data/Enemies';
+import { getEnemyTemplate, calculateEnemyStats } from '../data/Enemies';
 import { CombatSystem } from '../systems/CombatSystem';
 import { GAME_CONFIG } from '../core/Config';
 
 export default class Enemy extends Phaser.GameObjects.Sprite {
-    private stats: CombatStats;
-    private combatState: CombatState;
+    private stats!: CombatStats;
+    private combatState!: CombatState;
     private enemyType: EnemyType;
-    private aiState: 'patrol' | 'chase' | 'attack' | 'stunned' = 'patrol';
-    private patrolTarget: Phaser.Math.Vector2;
-    private target: any = null; // 目标玩家
+    private aiState: 'idle' | 'chase' | 'attack' | 'stunned' = 'idle';
+    private target: Phaser.GameObjects.Sprite | null = null;
+    private chaseRange: number = 800; // 追踪范围
+    private attackRange: number = 60; // 攻击范围
 
     constructor(scene: Phaser.Scene, x: number, y: number, enemyType: EnemyType) {
         // 使用临时占位图，实际开发中替换为资源图
@@ -33,14 +34,14 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
 
         // 添加刚体
         const body = this.body as Phaser.Physics.Arcade.Body;
-        body.setCollideWorldBounds(true);
+        body.setCollideWorldBounds(false); // 允许敌人从边界外进入
         body.setSize(32, 32);
-
-        // 设置巡逻目标
-        this.patrolTarget = new Phaser.Math.Vector2(x, y);
 
         // 设置颜色区分不同类型敌人
         this.setupEnemyAppearance();
+
+        // 默认进入追踪状态
+        this.aiState = 'chase';
     }
 
     /**
@@ -79,45 +80,63 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
      * 设置敌人外观
      */
     private setupEnemyAppearance(): void {
+        // 根据类型设置不同颜色和大小
         switch (this.enemyType) {
             case EnemyType.COMMON:
-                this.setTint(0x666666); // 灰色
+                this.setTint(0x888888); // 灰色
+                this.setScale(0.8);
                 break;
             case EnemyType.ELITE:
                 this.setTint(0x4444ff); // 蓝色
+                this.setScale(1.0);
                 break;
             case EnemyType.BOSS:
                 this.setTint(0xff4444); // 红色
+                this.setScale(1.5);
                 break;
         }
+    }
+
+    /**
+     * 设置追踪目标
+     */
+    public setTarget(target: Phaser.GameObjects.Sprite): void {
+        this.target = target;
+        this.aiState = 'chase';
     }
 
     /**
      * 更新敌人状态
      */
     update(time: number, delta: number): void {
-        if (this.combatState.isStunned) return;
+        if (this.combatState.isStunned || !this.stats) return;
+
+        // 检查是否在世界范围内，如果太远则销毁
+        this.checkBounds();
 
         // 更新AI
         this.updateAI(time, delta);
+    }
 
-        // 更新动画（如果需要）
+    /**
+     * 检查是否超出世界边界太远
+     */
+    private checkBounds(): void {
+        const margin = 200;
+        if (this.x < -margin || this.x > GAME_CONFIG.worldWidth + margin ||
+            this.y < -margin || this.y > GAME_CONFIG.worldHeight + margin) {
+            // 敌人超出边界太远，销毁它
+            this.destroy();
+        }
     }
 
     /**
      * 更新AI行为
      */
     private updateAI(time: number, delta: number): void {
-        // 寻找玩家目标
-        this.findTarget();
-
-        if (!this.target) {
-            this.aiState = 'patrol';
-        }
-
         switch (this.aiState) {
-            case 'patrol':
-                this.patrol(delta);
+            case 'idle':
+                this.idle();
                 break;
             case 'chase':
                 this.chase(delta);
@@ -125,54 +144,24 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
             case 'attack':
                 this.attack(time, delta);
                 break;
+            case 'stunned':
+                // 眩晕状态下不移动
+                const body = this.body as Phaser.Physics.Arcade.Body;
+                body.setVelocity(0, 0);
+                break;
         }
     }
 
     /**
-     * 寻找目标
+     * 空闲状态
      */
-    private findTarget(): void {
-        // 在场景中查找玩家
-        const player = this.scene.children.list.find(
-            (child: any) => child.constructor.name === 'Player'
-        ) as any;
-
-        if (player) {
-            const distance = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
-            if (distance < 300) {
-                this.target = player;
-            } else {
-                this.target = null;
-            }
-        }
-    }
-
-    /**
-     * 巡逻行为
-     */
-    private patrol(delta: number): void {
+    private idle(): void {
         const body = this.body as Phaser.Physics.Arcade.Body;
+        body.setVelocity(0, 0);
 
-        // 检查是否到达巡逻点
-        const distanceToTarget = Phaser.Math.Distance.Between(
-            this.x, this.y,
-            this.patrolTarget.x, this.patrolTarget.y
-        );
-
-        if (distanceToTarget < 20) {
-            // 随机选择新的巡逻点
-            this.patrolTarget.setTo(
-                Phaser.Math.Between(100, GAME_CONFIG.width - 100),
-                Phaser.Math.Between(100, GAME_CONFIG.height - 100)
-            );
-        } else {
-            // 移动向巡逻点
-            const direction = new Phaser.Math.Vector2(
-                this.patrolTarget.x - this.x,
-                this.patrolTarget.y - this.y
-            );
-            direction.normalize().scale(this.stats.moveSpeed * 0.5);
-            body.setVelocity(direction.x, direction.y);
+        // 如果有目标，切换到追踪状态
+        if (this.target) {
+            this.aiState = 'chase';
         }
     }
 
@@ -181,33 +170,41 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
      */
     private chase(delta: number): void {
         if (!this.target) {
-            this.aiState = 'patrol';
+            this.aiState = 'idle';
             return;
         }
 
-        const distance = Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y);
+        const distance = Phaser.Math.Distance.Between(
+            this.x, this.y,
+            this.target.x, this.target.y
+        );
 
         // 检查攻击范围
-        if (distance < GAME_CONFIG.combat.baseAttackRange) {
+        if (distance < this.attackRange) {
             this.aiState = 'attack';
             return;
         }
 
-        // 检查是否超出追击范围
-        if (distance > 400) {
-            this.target = null;
-            this.aiState = 'patrol';
-            return;
-        }
-
+        // 持续追踪目标，不设置追踪范围限制
         // 移动向目标
         const direction = new Phaser.Math.Vector2(
             this.target.x - this.x,
             this.target.y - this.y
         );
-        direction.normalize().scale(this.stats.moveSpeed);
+        direction.normalize();
+
         const body = this.body as Phaser.Physics.Arcade.Body;
-        body.setVelocity(direction.x, direction.y);
+        body.setVelocity(
+            direction.x * this.stats.moveSpeed,
+            direction.y * this.stats.moveSpeed
+        );
+
+        // 面向目标
+        if (direction.x < 0) {
+            this.setFlipX(true);
+        } else {
+            this.setFlipX(false);
+        }
     }
 
     /**
@@ -215,17 +212,24 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
      */
     private attack(time: number, delta: number): void {
         if (!this.target) {
-            this.aiState = 'patrol';
+            this.aiState = 'idle';
             return;
         }
 
-        const distance = Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y);
+        const distance = Phaser.Math.Distance.Between(
+            this.x, this.y,
+            this.target.x, this.target.y
+        );
 
         // 检查是否超出攻击范围
-        if (distance > GAME_CONFIG.combat.baseAttackRange) {
+        if (distance > this.attackRange * 1.5) {
             this.aiState = 'chase';
             return;
         }
+
+        // 停止移动
+        const body = this.body as Phaser.Physics.Arcade.Body;
+        body.setVelocity(0, 0);
 
         // 检查攻击冷却
         if (!CombatSystem.canAttack(this.combatState.lastAttackTime, this.stats.attackSpeed, time)) {
@@ -243,15 +247,20 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
         this.combatState.lastAttackTime = time;
         this.combatState.isAttacking = true;
 
-        // 播放攻击动画（使用占位图）
+        // 播放攻击动画（使用颜色闪烁）
         this.setTint(0xffffff);
 
         // 计算伤害
-        const damageResult = CombatSystem.calculateDamage(this.stats, this.target.getStats());
+        const damageResult = CombatSystem.calculateDamage(
+            this.stats,
+            (this.target as any).getStats ? (this.target as any).getStats() : {}
+        );
         const damage = damageResult.damage;
 
         // 对目标造成伤害
-        this.target.takeDamage(damage);
+        if ((this.target as any).takeDamage) {
+            (this.target as any).takeDamage(damage);
+        }
 
         // 显示攻击特效
         this.createAttackEffect();
@@ -267,11 +276,13 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
      * 受到伤害
      */
     public takeDamage(damage: number): void {
+        if (!this.stats) return;
+
         this.stats.hp -= damage;
         this.stats.hp = Math.max(this.stats.hp, 0);
 
         // 播放受伤特效
-        this.setTint(0xffffff);
+        this.setTint(0xff0000);
         this.scene.time.delayedCall(100, () => {
             this.setupEnemyAppearance();
         });
@@ -295,7 +306,7 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
         // 播放死亡动画
         this.scene.tweens.add({
             targets: this,
-            scale: { from: 1, to: 0 },
+            scale: { from: this.scale, to: 0 },
             alpha: { from: 1, to: 0 },
             duration: 500,
             ease: 'Power2',
@@ -323,18 +334,22 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
      * 显示伤害数字
      */
     private showDamageNumber(damage: number, isCrit: boolean): void {
-        const text = this.scene.add.text(this.x, this.y, damage.toString(), {
+        const text = this.scene.add.text(this.x, this.y - 20, damage.toString(), {
             fontSize: isCrit ? '28px' : '20px',
             fontStyle: 'bold',
             color: isCrit ? '#ffff00' : '#ffffff',
-            fontFamily: 'Courier New, monospace'
+            fontFamily: 'Courier New, monospace',
+            stroke: '#000000',
+            strokeThickness: 2
         });
         text.setOrigin(0.5);
+        text.setScrollFactor(1);
+        text.setDepth(100);
 
         // 动画效果
         this.scene.tweens.add({
             targets: text,
-            y: this.y - 30,
+            y: this.y - 60,
             alpha: 0,
             duration: 800,
             ease: 'Power2',
@@ -348,20 +363,33 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
      * 创建攻击特效
      */
     private createAttackEffect(): void {
+        if (!this.target) return;
+
+        // 创建简单的攻击线
         const graphics = this.scene.add.graphics();
         graphics.lineStyle(2, 0xff4444, 0.8);
-        graphics.arc(
-            this.x,
-            this.y,
-            30,
-            0,
-            Phaser.Math.PI2,
-            false
-        );
+        graphics.beginPath();
+        graphics.moveTo(this.x, this.y);
+        graphics.lineTo(this.target.x, this.target.y);
         graphics.strokePath();
+        graphics.setDepth(50);
 
-        this.scene.time.delayedCall(200, () => {
+        // 延迟销毁
+        this.scene.time.delayedCall(100, () => {
             graphics.destroy();
+        });
+    }
+
+    /**
+     * 眩晕
+     */
+    public stun(duration: number): void {
+        this.combatState.isStunned = true;
+        this.aiState = 'stunned';
+
+        this.scene.time.delayedCall(duration, () => {
+            this.combatState.isStunned = false;
+            this.aiState = 'chase';
         });
     }
 }

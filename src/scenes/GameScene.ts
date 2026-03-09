@@ -8,13 +8,14 @@ import Player from '../entities/Player';
 import Enemy from '../entities/Enemy';
 import { GAME_CONFIG } from '../core/Config';
 import { EnemyType } from '../core/Types';
-import { getEnemyTemplate, calculateEnemyStats, rollLoot } from '../data/Enemies';
+import { getEnemyTemplate, rollLoot } from '../data/Enemies';
 
 export default class GameScene extends Phaser.Scene {
     private player!: Player;
     private enemies: Enemy[] = [];
     private timeElapsed: number = 0;
     private levelTime: number = GAME_CONFIG.level.duration;
+    private spawnTimer!: Phaser.Time.TimerEvent;
 
     // 输入控制
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -43,8 +44,14 @@ export default class GameScene extends Phaser.Scene {
         // 创建玩家
         this.createPlayer();
 
-        // 创建敌人
-        this.spawnEnemies();
+        // 设置相机跟随玩家
+        this.setupCamera();
+
+        // 创建初始敌人
+        this.spawnInitialEnemies();
+
+        // 启动持续生成敌人的定时器
+        this.startEnemySpawner();
 
         // 创建UI场景
         this.scene.launch('UIScene', { player: this.player });
@@ -71,44 +78,65 @@ export default class GameScene extends Phaser.Scene {
      * 创建地图
      */
     private createMap(): void {
-        // 创建地图背景
+        const worldWidth = GAME_CONFIG.worldWidth;
+        const worldHeight = GAME_CONFIG.worldHeight;
+
+        // 创建地图背景 - 使用瓦片覆盖整个世界
         const graphics = this.add.graphics();
         graphics.fillStyle(0x0f0f1f, 1);
-        graphics.fillRect(0, 0, GAME_CONFIG.width, GAME_CONFIG.height);
+        graphics.fillRect(0, 0, worldWidth, worldHeight);
 
         // 绘制网格地板
-        graphics.lineStyle(1, 0x1a1a2e, 0.5);
+        graphics.lineStyle(1, 0x1a1a2e, 0.3);
         const tileSize = GAME_CONFIG.tileSize;
-        for (let x = 0; x < GAME_CONFIG.width; x += tileSize) {
+        
+        for (let x = 0; x <= worldWidth; x += tileSize) {
             graphics.moveTo(x, 0);
-            graphics.lineTo(x, GAME_CONFIG.height);
+            graphics.lineTo(x, worldHeight);
         }
-        for (let y = 0; y < GAME_CONFIG.height; y += tileSize) {
+        for (let y = 0; y <= worldHeight; y += tileSize) {
             graphics.moveTo(0, y);
-            graphics.lineTo(GAME_CONFIG.width, y);
+            graphics.lineTo(worldWidth, y);
         }
         graphics.strokePath();
 
-        // 创建世界边界
-        this.physics.world.setBounds(0, 0, GAME_CONFIG.width, GAME_CONFIG.height);
+        // 绘制边界警告区域
+        graphics.lineStyle(4, 0xff0000, 0.3);
+        graphics.strokeRect(10, 10, worldWidth - 20, worldHeight - 20);
 
-        // 设置摄像机
-        this.cameras.main.setBounds(0, 0, GAME_CONFIG.width, GAME_CONFIG.height);
+        // 创建世界边界
+        this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
+    }
+
+    /**
+     * 设置相机跟随
+     */
+    private setupCamera(): void {
+        const worldWidth = GAME_CONFIG.worldWidth;
+        const worldHeight = GAME_CONFIG.worldHeight;
+
+        // 设置相机边界为世界大小
+        this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
         this.cameras.main.setBackgroundColor('#0f0f1f');
+        
+        // 相机跟随玩家，带有平滑跟随效果
+        this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+        this.cameras.main.setZoom(1);
     }
 
     /**
      * 创建玩家
      */
     private createPlayer(): void {
-        const startX = GAME_CONFIG.width / 2;
-        const startY = GAME_CONFIG.height / 2;
+        const startX = GAME_CONFIG.worldWidth / 2;
+        const startY = GAME_CONFIG.worldHeight / 2;
 
         // 创建玩家实体
         this.player = new Player(this, startX, startY);
 
-        // 添加碰撞检测
-        this.physics.add.collider(this.player, null, null, undefined, this);
+        // 设置玩家在世界边界内
+        const body = this.player.body as Phaser.Physics.Arcade.Body;
+        body.setCollideWorldBounds(true);
 
         // 监听玩家死亡事件
         this.player.on('playerDeath', () => {
@@ -117,43 +145,89 @@ export default class GameScene extends Phaser.Scene {
     }
 
     /**
-     * 生成敌人
+     * 生成初始敌人
      */
-    private spawnEnemies(): void {
+    private spawnInitialEnemies(): void {
         // 生成普通敌人
         for (let i = 0; i < GAME_CONFIG.level.enemyCount; i++) {
-            this.spawnEnemy(EnemyType.COMMON);
+            this.spawnEnemyFromEdge(EnemyType.COMMON);
         }
 
         // 生成精英敌人
         for (let i = 0; i < GAME_CONFIG.level.eliteCount; i++) {
-            this.spawnEnemy(EnemyType.ELITE);
+            this.spawnEnemyFromEdge(EnemyType.ELITE);
         }
     }
 
     /**
-     * 生成单个敌人
+     * 启动敌人持续生成器
      */
-    private spawnEnemy(type: EnemyType): void {
-        // 随机生成位置，远离玩家
-        let x: number, y: number;
-        let distance: number;
-        let attempts = 0;
+    private startEnemySpawner(): void {
+        this.spawnTimer = this.time.addEvent({
+            delay: GAME_CONFIG.level.enemySpawnInterval,
+            callback: () => {
+                // 只有在敌人数量未达到上限时才生成新敌人
+                if (this.enemies.length < GAME_CONFIG.level.maxEnemies) {
+                    // 80% 概率生成普通敌人，20% 概率生成精英
+                    const type = Math.random() < 0.8 ? EnemyType.COMMON : EnemyType.ELITE;
+                    this.spawnEnemyFromEdge(type);
+                }
+            },
+            loop: true
+        });
+    }
 
-        do {
-            x = Phaser.Math.Between(100, GAME_CONFIG.width - 100);
-            y = Phaser.Math.Between(100, GAME_CONFIG.height - 100);
-            distance = Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y);
-            attempts++;
-        } while (distance < 300 && attempts < 100);
+    /**
+     * 从世界边界外生成敌人
+     */
+    private spawnEnemyFromEdge(type: EnemyType): void {
+        const worldWidth = GAME_CONFIG.worldWidth;
+        const worldHeight = GAME_CONFIG.worldHeight;
+        const margin = 50; // 在边界外的距离
+
+        let x: number, y: number;
+
+        // 随机选择一个边界（0: 上, 1: 下, 2: 左, 3: 右）
+        const edge = Phaser.Math.Between(0, 3);
+
+        switch (edge) {
+            case 0: // 上边界
+                x = Phaser.Math.Between(50, worldWidth - 50);
+                y = -margin;
+                break;
+            case 1: // 下边界
+                x = Phaser.Math.Between(50, worldWidth - 50);
+                y = worldHeight + margin;
+                break;
+            case 2: // 左边界
+                x = -margin;
+                y = Phaser.Math.Between(50, worldHeight - 50);
+                break;
+            case 3: // 右边界
+                x = worldWidth + margin;
+                y = Phaser.Math.Between(50, worldHeight - 50);
+                break;
+            default:
+                x = -margin;
+                y = worldHeight / 2;
+        }
 
         // 创建敌人实体
         const enemy = new Enemy(this, x, y, type);
         this.enemies.push(enemy);
 
+        // 设置敌人追踪玩家
+        enemy.setTarget(this.player);
+
         // 添加碰撞检测
         this.physics.add.collider(this.player, enemy, this.handlePlayerEnemyCollision, undefined, this);
-        this.physics.add.collider(enemy, enemy, undefined, undefined, this);
+        
+        // 敌人之间的碰撞
+        for (const otherEnemy of this.enemies) {
+            if (otherEnemy !== enemy) {
+                this.physics.add.collider(enemy, otherEnemy);
+            }
+        }
     }
 
     /**
@@ -177,6 +251,9 @@ export default class GameScene extends Phaser.Scene {
             this.enemies.splice(index, 1);
         }
 
+        // 增加击杀数
+        this.player.addKill();
+
         // 计算掉落
         const enemyType = enemy.getEnemyType();
         const template = getEnemyTemplate(enemyType);
@@ -189,106 +266,69 @@ export default class GameScene extends Phaser.Scene {
             // 增加经验值
             this.player.addExperience(template.experience);
         }
-
-        // 检查是否需要重新生成敌人
-        if (this.enemies.length < GAME_CONFIG.level.enemyCount) {
-            this.time.delayedCall(GAME_CONFIG.level.enemyRespawnTime * 1000, () => {
-                this.spawnEnemy(EnemyType.COMMON);
-            });
-        }
-
-        // 检查是否击败了所有精英敌人
-        const eliteEnemies = this.enemies.filter(e => e.getEnemyType() === EnemyType.ELITE);
-        if (eliteEnemies.length === 0) {
-            this.onAllElitesDefeated();
-        }
-    }
-
-    /**
-     * 所有精英敌人被击败
-     */
-    private onAllElitesDefeated(): void {
-        // 显示传送门
-        this.createPortal();
-    }
-
-    /**
-     * 创建传送门
-     */
-    private createPortal(): void {
-        const portal = this.add.image(GAME_CONFIG.width / 2, 100, 'tile_floor');
-        portal.setTint(0x00ffff);
-        portal.setScale(2);
-
-        // 添加传送门动画
-        this.tweens.add({
-            targets: portal,
-            scale: { from: 1, to: 2 },
-            alpha: { from: 0.5, to: 1 },
-            duration: 2000,
-            yoyo: true,
-            repeat: -1
-        });
-
-        // 添加碰撞检测
-        portal.setInteractive();
-        portal.on('pointerdown', () => {
-            this.onPortalEnter();
-        });
-    }
-
-    /**
-     * 进入传送门
-     */
-    private onPortalEnter(): void {
-        console.log('Entering next level...');
-        // TODO: 进入下一关的逻辑
     }
 
     /**
      * 玩家死亡处理
      */
     private onPlayerDeath(): void {
-        // 停止游戏
-        this.physics.pause();
+        // 停止生成敌人
+        if (this.spawnTimer) {
+            this.spawnTimer.destroy();
+        }
 
         // 显示游戏结束界面
-        this.add.rectangle(
-            this.cameras.main.width / 2,
-            this.cameras.main.height / 2,
-            800,
-            400,
-            0x000000,
-            0.8
-        );
+        this.showGameOver();
+    }
 
-        const gameOverText = this.add.text(
-            this.cameras.main.width / 2,
-            this.cameras.main.height / 2 - 50,
-            'GAME OVER',
-            {
-                fontSize: '64px',
-                fontStyle: 'bold',
-                color: '#ff4444',
-                fontFamily: 'Courier New, monospace'
-            }
-        );
+    /**
+     * 显示游戏结束界面
+     */
+    private showGameOver(): void {
+        const centerX = this.cameras.main.scrollX + GAME_CONFIG.width / 2;
+        const centerY = this.cameras.main.scrollY + GAME_CONFIG.height / 2;
+
+        // 半透明背景
+        const bg = this.add.rectangle(centerX, centerY, 400, 300, 0x000000, 0.8);
+        bg.setStrokeStyle(3, 0xff0000);
+
+        // 游戏结束文字
+        const gameOverText = this.add.text(centerX, centerY - 80, 'GAME OVER', {
+            fontSize: '48px',
+            fontStyle: 'bold',
+            color: '#ff0000',
+            fontFamily: 'Courier New, monospace'
+        });
         gameOverText.setOrigin(0.5);
 
-        const restartText = this.add.text(
-            this.cameras.main.width / 2,
-            this.cameras.main.height / 2 + 50,
-            '按 R 键重新开始',
-            {
-                fontSize: '24px',
-                color: '#ffffff',
-                fontFamily: 'Courier New, monospace'
-            }
-        );
-        restartText.setOrigin(0.5);
+        // 统计信息
+        const statsText = this.add.text(centerX, centerY, `击败敌人: ${this.player.getKillCount()}`, {
+            fontSize: '20px',
+            color: '#ffffff',
+            fontFamily: 'Courier New, monospace'
+        });
+        statsText.setOrigin(0.5);
 
-        // 监听重新开始
-        this.input.keyboard!.once('keydown-R', () => {
+        // 重新开始按钮
+        const restartButton = this.add.text(centerX, centerY + 80, '[ 重新开始 ]', {
+            fontSize: '24px',
+            fontStyle: 'bold',
+            color: '#00ffff',
+            fontFamily: 'Courier New, monospace'
+        });
+        restartButton.setOrigin(0.5);
+        restartButton.setInteractive({ useHandCursor: true });
+
+        restartButton.on('pointerover', () => {
+            restartButton.setColor('#ffffff');
+        });
+
+        restartButton.on('pointerout', () => {
+            restartButton.setColor('#00ffff');
+        });
+
+        restartButton.on('pointerdown', () => {
+            this.scene.stop('UIScene');
             this.scene.restart();
         });
     }
@@ -297,15 +337,6 @@ export default class GameScene extends Phaser.Scene {
      * 更新场景
      */
     update(time: number, delta: number): void {
-        // 更新时间
-        this.timeElapsed += delta / 1000;
-
-        // 检查时间是否耗尽
-        if (this.timeElapsed >= this.levelTime) {
-            this.onTimeExpired();
-            return;
-        }
-
         // 更新玩家
         this.player.update(time, delta);
 
@@ -314,21 +345,7 @@ export default class GameScene extends Phaser.Scene {
             enemy.update(time, delta);
         }
 
-        // 更新摄像机跟随玩家
-        this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
-
-        // 发送时间更新事件到UI场景
-        this.events.emit('timeUpdate', {
-            elapsed: this.timeElapsed,
-            remaining: this.levelTime - this.timeElapsed
-        });
-    }
-
-    /**
-     * 时间耗尽处理
-     */
-    private onTimeExpired(): void {
-        // 时间耗尽，游戏结束
-        this.player.takeDamage(9999);
+        // 更新时间
+        this.timeElapsed += delta / 1000;
     }
 }
