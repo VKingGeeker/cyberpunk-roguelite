@@ -657,6 +657,31 @@ export default class GameScene extends Phaser.Scene {
      * 重新开始游戏
      */
     private restartGame(): void {
+        // 清理玩家资源
+        if (this.player) {
+            this.player.cleanup();
+        }
+
+        // 清理敌人
+        this.enemies.forEach(enemy => enemy.destroy());
+        this.enemies = [];
+
+        // 清理道具
+        this.powerUps.forEach(powerUp => powerUp.destroy());
+        this.powerUps = [];
+
+        // 销毁定时器
+        if (this.spawnTimer) {
+            this.spawnTimer.destroy();
+        }
+        if (this.powerUpTimer) {
+            this.powerUpTimer.destroy();
+        }
+
+        // 移除事件监听
+        this.events.off('enemyDefeated', this.onEnemyDefeated, this);
+
+        // 停止UI场景并重启游戏场景
         this.scene.stop('UIScene');
         this.scene.restart();
     }

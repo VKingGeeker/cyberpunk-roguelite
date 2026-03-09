@@ -471,4 +471,21 @@ export default class UIScene extends Phaser.Scene {
             ease: 'Back.out'
         });
     }
+
+    /**
+     * 场景关闭时清理资源
+     */
+    shutdown(): void {
+        // 移除事件监听器
+        const gameScene = this.scene.get('GameScene');
+        if (gameScene) {
+            gameScene.events.off('updateHealth', this.updateHealth, this);
+            gameScene.events.off('updateExperience', this.updateExperience, this);
+            gameScene.events.off('skill-changed', this.updateSkillDisplay, this);
+        }
+
+        // 清理技能图标
+        this.skillIcons.forEach(icon => icon.destroy());
+        this.skillIcons = [];
+    }
 }

@@ -164,70 +164,171 @@ export default class BootScene extends Phaser.Scene {
     }
 
     /**
-     * 创建赛博玩家纹理
+     * 创建赛博玩家纹理 - 灵动的赛博朋克战士
      */
     private createCyberPlayerTexture(key: string): void {
         const graphics = this.add.graphics();
         const size = 48;
         const center = size / 2;
 
-        // 外发光
-        graphics.fillStyle(0x00ffff, 0.1);
-        graphics.fillCircle(center, center, 20);
+        // 根据纹理类型决定动画帧
+        const isRunning = key.includes('run');
+        const isAttacking = key.includes('attack');
+        
+        // 角色基础偏移
+        const leanOffset = isAttacking ? 3 : 0;
 
-        // 身体 - 深色机械装甲
-        graphics.fillStyle(0x1a1a2e, 1);
-        graphics.fillRoundedRect(center - 8, center - 6, 16, 18, 3);
+        // ========== 飘逸能量尾迹/披风 ==========
+        graphics.fillStyle(0x00ffff, 0.15);
+        graphics.fillTriangle(
+            center - 5 + leanOffset, center + 2,
+            center - 14 + leanOffset, center + 18,
+            center + 2 + leanOffset, center + 15
+        );
 
-        // 装甲细节 - 金属质感
-        graphics.fillStyle(0x2a2a3e, 1);
-        graphics.fillRect(center - 6, center - 4, 12, 4);
-        graphics.fillRect(center - 6, center + 2, 12, 4);
+        // ========== 能量光环 ==========
+        graphics.fillStyle(0x00ffff, 0.08);
+        graphics.fillCircle(center, center - 5, 20);
+        graphics.fillStyle(0xff00ff, 0.05);
+        graphics.fillCircle(center, center - 5, 16);
 
-        // 霓虹电路线条
-        graphics.lineStyle(1, 0x00ffff, 1);
-        // 左臂电路
-        graphics.moveTo(center - 8, center - 2);
-        graphics.lineTo(center - 12, center - 2);
-        graphics.lineTo(center - 12, center + 6);
-        // 右臂电路
-        graphics.moveTo(center + 8, center - 2);
-        graphics.lineTo(center + 12, center - 2);
-        graphics.lineTo(center + 12, center + 6);
-        graphics.strokePath();
+        // ========== 身体 - 修身战斗服 ==========
+        // 主体 - 深紫色紧身战斗服
+        graphics.fillStyle(0x1a0a2e, 1);
+        graphics.fillRoundedRect(center - 8 + leanOffset, center - 4, 16, 22, 4);
+        
+        // 胸甲装饰
+        graphics.fillStyle(0x2a1a3e, 1);
+        graphics.fillRoundedRect(center - 6 + leanOffset, center - 2, 12, 8, 2);
 
-        // 电子眼 - 发光
+        // ========== 霓虹战斗纹路 ==========
+        graphics.lineStyle(1.5, 0x00ffff, 1);
+        // 身体中央能量线
+        graphics.lineBetween(center + leanOffset, center, center + leanOffset, center + 14);
+        
+        // 菱形能量节点
         graphics.fillStyle(0x00ffff, 1);
-        graphics.fillCircle(center - 3, center - 10, 2);
-        graphics.fillCircle(center + 3, center - 10, 2);
+        graphics.fillTriangle(
+            center + leanOffset, center + 2,
+            center + 3 + leanOffset, center + 5,
+            center + leanOffset, center + 8
+        );
+        graphics.fillTriangle(
+            center + leanOffset, center + 2,
+            center - 3 + leanOffset, center + 5,
+            center + leanOffset, center + 8
+        );
+
+        // ========== 手臂 - 动态姿势 ==========
+        graphics.fillStyle(0x2a1a3e, 1);
+        // 左臂
+        const leftArmX = center - 13 - (isAttacking ? 4 : 0);
+        graphics.fillRoundedRect(leftArmX + leanOffset, center - 2, 5, 14, 2);
+        // 左手能量手套
+        graphics.fillStyle(0x00ffff, 0.9);
+        graphics.fillCircle(leftArmX + 2 + leanOffset, center + 13, 3);
+        
+        // 右臂（攻击时前伸）
+        graphics.fillStyle(0x2a1a3e, 1);
+        const rightArmX = center + 8 + (isAttacking ? 7 : 0);
+        graphics.fillRoundedRect(rightArmX + leanOffset, center - 2, 5, 14, 2);
+        // 右手能量手套
+        graphics.fillStyle(0xff00ff, 0.9);
+        graphics.fillCircle(rightArmX + 2 + leanOffset, center + 13, 3);
+
+        // 攻击时的能量爆发
+        if (isAttacking) {
+            graphics.lineStyle(2, 0xff00ff, 0.8);
+            graphics.lineBetween(rightArmX + 5 + leanOffset, center + 13, rightArmX + 15 + leanOffset, center + 10);
+            graphics.lineBetween(rightArmX + 5 + leanOffset, center + 13, rightArmX + 13 + leanOffset, center + 18);
+        }
+
+        // ========== 腿部 - 动态姿态 ==========
+        graphics.fillStyle(0x1a0a2e, 1);
+        // 左腿
+        const leftLegOffset = isRunning ? -2 : 0;
+        graphics.fillRoundedRect(center - 6 + leanOffset + leftLegOffset, center + 18, 5, 8, 2);
+        // 左靴
+        graphics.fillStyle(0x3a2a4e, 1);
+        graphics.fillRoundedRect(center - 7 + leanOffset + leftLegOffset, center + 24, 7, 4, 1);
+        
+        // 右腿
+        graphics.fillStyle(0x1a0a2e, 1);
+        const rightLegOffset = isRunning ? 2 : 0;
+        graphics.fillRoundedRect(center + 1 + leanOffset + rightLegOffset, center + 18, 5, 8, 2);
+        // 右靴
+        graphics.fillStyle(0x3a2a4e, 1);
+        graphics.fillRoundedRect(center + leanOffset + rightLegOffset, center + 24, 7, 4, 1);
+
+        // 靴子霓虹边缘
+        graphics.lineStyle(1, 0x00ffff, 0.8);
+        graphics.strokeRoundedRect(center - 7 + leanOffset + leftLegOffset, center + 24, 7, 4, 1);
+        graphics.strokeRoundedRect(center + leanOffset + rightLegOffset, center + 24, 7, 4, 1);
+
+        // ========== 头部 - 灵动的面庞 ==========
+        // 头部主体
+        graphics.fillStyle(0xf0d8c8, 1); // 肤色
+        graphics.fillCircle(center + leanOffset, center - 12, 8);
+
+        // 头发 - 霓虹紫发
+        graphics.fillStyle(0x2a0a3e, 1);
+        // 前刘海
+        graphics.fillTriangle(
+            center - 6 + leanOffset, center - 14,
+            center + leanOffset, center - 20,
+            center + 6 + leanOffset, center - 14
+        );
+        // 后部飘逸长发
+        graphics.fillTriangle(
+            center - 10 + leanOffset, center - 10,
+            center - 8 + leanOffset, center + 5,
+            center + 2 + leanOffset, center - 8
+        );
+        // 右侧头发
+        graphics.fillTriangle(
+            center + 4 + leanOffset, center - 14,
+            center + 10 + leanOffset, center - 6,
+            center + 6 + leanOffset, center - 10
+        );
+
+        // 头发霓虹挑染
+        graphics.lineStyle(1.5, 0xff00ff, 0.9);
+        graphics.lineBetween(center - 10 + leanOffset, center - 10, center - 6 + leanOffset, center + 3);
+        graphics.lineBetween(center + 6 + leanOffset, center - 14, center + 9 + leanOffset, center - 5);
+
+        // ========== 面部特征 ==========
+        // 眼睛 - 炯炯有神的赛博眼
+        graphics.fillStyle(0x00ffff, 1);
+        graphics.fillCircle(center - 3 + leanOffset, center - 12, 2);
+        graphics.fillCircle(center + 3 + leanOffset, center - 12, 2);
+        
+        // 眼睛高光
+        graphics.fillStyle(0xffffff, 1);
+        graphics.fillCircle(center - 2.5 + leanOffset, center - 12.5, 1);
+        graphics.fillCircle(center + 3.5 + leanOffset, center - 12.5, 1);
 
         // 眼睛光晕
-        graphics.fillStyle(0x00ffff, 0.3);
-        graphics.fillCircle(center - 3, center - 10, 4);
-        graphics.fillCircle(center + 3, center - 10, 4);
+        graphics.fillStyle(0x00ffff, 0.2);
+        graphics.fillCircle(center - 3 + leanOffset, center - 12, 4);
+        graphics.fillCircle(center + 3 + leanOffset, center - 12, 4);
 
-        // 头部 - 赛博头盔
-        graphics.fillStyle(0x2a2a3e, 1);
-        graphics.fillRoundedRect(center - 6, center - 14, 12, 10, 2);
+        // 嘴巴 - 微笑
+        graphics.lineStyle(1, 0xff6699, 0.8);
+        graphics.lineBetween(center - 2 + leanOffset, center - 8, center + 2 + leanOffset, center - 8);
 
-        // 头盔装饰线
-        graphics.lineStyle(1, 0xff00ff, 0.8);
-        graphics.moveTo(center - 6, center - 10);
-        graphics.lineTo(center + 6, center - 10);
-        graphics.strokePath();
+        // ========== 能量耳环 ==========
+        graphics.fillStyle(0xff00ff, 0.9);
+        graphics.fillCircle(center - 8 + leanOffset, center - 10, 1.5);
+        graphics.fillStyle(0x00ffff, 0.9);
+        graphics.fillCircle(center + 8 + leanOffset, center - 10, 1.5);
 
-        // 腿部
-        graphics.fillStyle(0x1a1a2e, 1);
-        graphics.fillRect(center - 6, center + 12, 4, 8);
-        graphics.fillRect(center + 2, center + 12, 4, 8);
-
-        // 腿部霓虹
-        graphics.lineStyle(1, 0x00ffff, 0.8);
-        graphics.moveTo(center - 4, center + 14);
-        graphics.lineTo(center - 4, center + 18);
-        graphics.moveTo(center + 4, center + 14);
-        graphics.lineTo(center + 4, center + 18);
-        graphics.strokePath();
+        // ========== 漂浮能量粒子 ==========
+        graphics.fillStyle(0x00ffff, 0.5);
+        graphics.fillCircle(center - 16 + leanOffset, center - 5, 2);
+        graphics.fillCircle(center + 16 + leanOffset, center, 2);
+        graphics.fillStyle(0xff00ff, 0.5);
+        graphics.fillCircle(center - 13 + leanOffset, center + 10, 2);
+        graphics.fillCircle(center + 13 + leanOffset, center + 15, 2);
 
         graphics.generateTexture(key, size, size);
         graphics.destroy();

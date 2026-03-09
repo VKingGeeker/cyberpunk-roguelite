@@ -37,7 +37,10 @@ export default class PowerUp extends Phaser.GameObjects.Sprite {
     private pulseTween: Phaser.Tweens.Tween | null = null;
 
     constructor(scene: Phaser.Scene, x: number, y: number, type: PowerUpType, rarity: PowerUpRarity) {
-        const textureKey = `powerup_${type}`;
+        // 使用正确的纹理名称格式: powerup_${type}_${rarity}
+        // 注意：经验球类型在纹理中使用 'exp' 而不是 'experience'
+        const textureType = type === PowerUpType.EXPERIENCE ? 'exp' : type;
+        const textureKey = `powerup_${textureType}_${rarity}`;
         super(scene, x, y, textureKey);
 
         scene.add.existing(this);

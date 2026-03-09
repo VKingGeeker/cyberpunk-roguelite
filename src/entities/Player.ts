@@ -1295,4 +1295,15 @@ export default class Player extends Phaser.GameObjects.Sprite {
     public getOwnedSkills(): Map<string, { skill: Skill; cooldownEndTime: number }> {
         return this.ownedSkills;
     }
+
+    /**
+     * 清理资源
+     */
+    public cleanup(): void {
+        // 移除事件监听器
+        this.scene.events.off('skillSelected', this.onSkillSelected, this);
+        
+        // 清理临时提升定时器
+        this.temporaryBoosts.clear();
+    }
 }
