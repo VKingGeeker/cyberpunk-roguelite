@@ -16,16 +16,7 @@ export default class GameScene extends Phaser.Scene {
     private timeElapsed: number = 0;
     private levelTime: number = GAME_CONFIG.level.duration;
     private spawnTimer!: Phaser.Time.TimerEvent;
-
-    // 输入控制
-    private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-    private keyW!: Phaser.Input.Keyboard.Key;
-    private keyA!: Phaser.Input.Keyboard.Key;
-    private keyS!: Phaser.Input.Keyboard.Key;
-    private keyD!: Phaser.Input.Keyboard.Key;
-    private key1!: Phaser.Input.Keyboard.Key;
-    private key2!: Phaser.Input.Keyboard.Key;
-    private key3!: Phaser.Input.Keyboard.Key;
+    private isGameOver: boolean = false;
 
     constructor() {
         super({ key: 'GameScene', active: false });
@@ -35,8 +26,10 @@ export default class GameScene extends Phaser.Scene {
      * 创建场景
      */
     create(): void {
-        // 初始化输入
-        this.initializeInput();
+        // 重置状态
+        this.isGameOver = false;
+        this.enemies = [];
+        this.timeElapsed = 0;
 
         // 创建地图
         this.createMap();
@@ -58,20 +51,6 @@ export default class GameScene extends Phaser.Scene {
 
         // 监听敌人被击败事件
         this.events.on('enemyDefeated', this.onEnemyDefeated, this);
-    }
-
-    /**
-     * 初始化输入控制
-     */
-    private initializeInput(): void {
-        this.cursors = this.input.keyboard!.createCursorKeys();
-        this.keyW = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W);
-        this.keyA = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A);
-        this.keyS = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S);
-        this.keyD = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D);
-        this.key1 = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
-        this.key2 = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
-        this.key3 = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
     }
 
     /**
@@ -138,8 +117,8 @@ export default class GameScene extends Phaser.Scene {
         const body = this.player.body as Phaser.Physics.Arcade.Body;
         body.setCollideWorldBounds(true);
 
-        // 监听玩家死亡事件
-        this.player.on('playerDeath', () => {
+        // 监听玩家死亡事件（只监听一次）
+        this.player.once('playerDeath', () => {
             this.onPlayerDeath();
         });
     }
@@ -166,8 +145,8 @@ export default class GameScene extends Phaser.Scene {
         this.spawnTimer = this.time.addEvent({
             delay: GAME_CONFIG.level.enemySpawnInterval,
             callback: () => {
-                // 只有在敌人数量未达到上限时才生成新敌人
-                if (this.enemies.length < GAME_CONFIG.level.maxEnemies) {
+                // 只有在敌人数量未达到上限且游戏未结束时才生成新敌人
+                if (!this.isGameOver && this.enemies.length < GAME_CONFIG.level.maxEnemies) {
                     // 80% 概率生成普通敌人，20% 概率生成精英
                     const type = Math.random() < 0.8 ? EnemyType.COMMON : EnemyType.ELITE;
                     this.spawnEnemyFromEdge(type);
@@ -181,6 +160,8 @@ export default class GameScene extends Phaser.Scene {
      * 从世界边界外生成敌人
      */
     private spawnEnemyFromEdge(type: EnemyType): void {
+        if (this.isGameOver) return;
+
         const worldWidth = GAME_CONFIG.worldWidth;
         const worldHeight = GAME_CONFIG.worldHeight;
         const margin = 50; // 在边界外的距离
@@ -237,8 +218,13 @@ export default class GameScene extends Phaser.Scene {
         player: Phaser.Types.Physics.Arcade.GameObjectWithBody,
         enemy: Phaser.Types.Physics.Arcade.GameObjectWithBody
     ): void {
-        // 碰撞时的逻辑可以在这里处理
-        // 比如伤害判定
+        // 碰撞时敌人攻击玩家
+        if ((player as Player).takeDamage && !this.isGameOver) {
+            const enemyObj = enemy as Enemy;
+            const enemyStats = enemyObj.getStats();
+            const damage = Math.max(1, enemyStats.attack - (player as Player).getStats().defense);
+            (player as Player).takeDamage(damage);
+        }
     }
 
     /**
@@ -250,6 +236,8 @@ export default class GameScene extends Phaser.Scene {
         if (index > -1) {
             this.enemies.splice(index, 1);
         }
+
+        if (this.isGameOver) return;
 
         // 增加击杀数
         this.player.addKill();
@@ -272,13 +260,22 @@ export default class GameScene extends Phaser.Scene {
      * 玩家死亡处理
      */
     private onPlayerDeath(): void {
+        // 防止重复调用
+        if (this.isGameOver) return;
+        this.isGameOver = true;
+
         // 停止生成敌人
         if (this.spawnTimer) {
             this.spawnTimer.destroy();
         }
 
-        // 显示游戏结束界面
-        this.showGameOver();
+        // 暂停物理系统
+        this.physics.pause();
+
+        // 延迟显示游戏结束界面
+        this.time.delayedCall(500, () => {
+            this.showGameOver();
+        });
     }
 
     /**
@@ -288,57 +285,90 @@ export default class GameScene extends Phaser.Scene {
         const centerX = this.cameras.main.scrollX + GAME_CONFIG.width / 2;
         const centerY = this.cameras.main.scrollY + GAME_CONFIG.height / 2;
 
+        // 创建容器来管理所有UI元素
+        const container = this.add.container(centerX, centerY);
+        container.setDepth(1000);
+
         // 半透明背景
-        const bg = this.add.rectangle(centerX, centerY, 400, 300, 0x000000, 0.8);
-        bg.setStrokeStyle(3, 0xff0000);
+        const bg = this.add.rectangle(0, 0, 450, 320, 0x000000, 0.9);
+        bg.setStrokeStyle(3, 0xff0000, 1);
+        container.add(bg);
 
         // 游戏结束文字
-        const gameOverText = this.add.text(centerX, centerY - 80, 'GAME OVER', {
+        const gameOverText = this.add.text(0, -100, 'GAME OVER', {
             fontSize: '48px',
             fontStyle: 'bold',
             color: '#ff0000',
             fontFamily: 'Courier New, monospace'
         });
         gameOverText.setOrigin(0.5);
+        container.add(gameOverText);
 
         // 统计信息
-        const statsText = this.add.text(centerX, centerY, `击败敌人: ${this.player.getKillCount()}`, {
-            fontSize: '20px',
+        const statsText = this.add.text(0, -20, `击败敌人: ${this.player.getKillCount()}\n等级: ${this.player.getLevel()}`, {
+            fontSize: '24px',
             color: '#ffffff',
-            fontFamily: 'Courier New, monospace'
+            fontFamily: 'Courier New, monospace',
+            align: 'center',
+            lineSpacing: 10
         });
         statsText.setOrigin(0.5);
+        container.add(statsText);
 
         // 重新开始按钮
-        const restartButton = this.add.text(centerX, centerY + 80, '[ 重新开始 ]', {
+        const restartBtn = this.add.rectangle(0, 80, 200, 50, 0x1a1a2e, 1);
+        restartBtn.setStrokeStyle(2, 0x00ffff, 1);
+        container.add(restartBtn);
+
+        const restartLabel = this.add.text(0, 80, '重新开始', {
             fontSize: '24px',
             fontStyle: 'bold',
             color: '#00ffff',
             fontFamily: 'Courier New, monospace'
         });
-        restartButton.setOrigin(0.5);
-        restartButton.setInteractive({ useHandCursor: true });
+        restartLabel.setOrigin(0.5);
+        container.add(restartLabel);
 
-        restartButton.on('pointerover', () => {
-            restartButton.setColor('#ffffff');
+        // 添加按钮交互
+        restartBtn.setInteractive({ useHandCursor: true });
+
+        restartBtn.on('pointerover', () => {
+            restartBtn.setFillStyle(0x00ffff, 0.3);
+            restartLabel.setColor('#ffffff');
         });
 
-        restartButton.on('pointerout', () => {
-            restartButton.setColor('#00ffff');
+        restartBtn.on('pointerout', () => {
+            restartBtn.setFillStyle(0x1a1a2e, 1);
+            restartLabel.setColor('#00ffff');
         });
 
-        restartButton.on('pointerdown', () => {
-            this.scene.stop('UIScene');
-            this.scene.restart();
+        restartBtn.on('pointerdown', () => {
+            this.restartGame();
         });
+    }
+
+    /**
+     * 重新开始游戏
+     */
+    private restartGame(): void {
+        // 停止UI场景
+        this.scene.stop('UIScene');
+        
+        // 重启游戏场景
+        this.scene.restart();
     }
 
     /**
      * 更新场景
      */
     update(time: number, delta: number): void {
+        // 游戏结束时不再更新
+        if (this.isGameOver) return;
+
         // 更新玩家
-        this.player.update(time, delta);
+        if (this.player && !this.player.getIsDead()) {
+            this.player.update(time, delta);
+        }
 
         // 更新敌人
         for (const enemy of this.enemies) {

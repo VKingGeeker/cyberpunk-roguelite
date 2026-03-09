@@ -47,7 +47,6 @@ export default class MenuScene extends Phaser.Scene {
             const length = Phaser.Math.Between(50, 200);
             const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
             
-            // 计算旋转后的坐标
             const cos = Math.cos(angle);
             const sin = Math.sin(angle);
             const halfLen = length / 2;
@@ -108,8 +107,7 @@ export default class MenuScene extends Phaser.Scene {
         const buttons = [
             { text: '开始游戏', action: () => this.startGame() },
             { text: '设置', action: () => this.showSettings() },
-            { text: '关于', action: () => this.showAbout() },
-            { text: '退出', action: () => this.quitGame() }
+            { text: '关于', action: () => this.showAbout() }
         ];
 
         buttons.forEach((button, index) => {
@@ -122,15 +120,12 @@ export default class MenuScene extends Phaser.Scene {
      * 创建按钮
      */
     private createButton(x: number, y: number, width: number, height: number, text: string, callback: () => void): void {
-        // 按钮背景
-        const bg = this.add.graphics();
-        bg.fillStyle(0x1a1a2e, 0.9);
-        bg.lineStyle(2, 0x00ffff, 1);
-        bg.fillRoundedRect(-width / 2, -height / 2, width, height, 10);
-        bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 10);
+        // 创建一个矩形作为按钮背景
+        const bg = this.add.rectangle(x, y, width, height, 0x1a1a2e, 0.9);
+        bg.setStrokeStyle(2, 0x00ffff, 1);
 
         // 按钮文字
-        const label = this.add.text(0, 0, text, {
+        const label = this.add.text(x, y, text, {
             fontSize: '28px',
             fontStyle: 'bold',
             color: '#00ffff',
@@ -138,38 +133,22 @@ export default class MenuScene extends Phaser.Scene {
         });
         label.setOrigin(0.5);
 
-        // 创建容器
-        const container = this.add.container(x, y, [bg, label]);
-        container.setSize(width, height);
-
-        // 添加交互
-        const hitbox = container.setInteractive({
-            useHandCursor: true,
-            hitArea: new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height),
-            hitAreaCallback: Phaser.Geom.Rectangle.Contains
-        });
+        // 设置交互 - 只在矩形上设置
+        bg.setInteractive({ useHandCursor: true });
 
         // 鼠标悬停效果
-        hitbox.on('pointerover', () => {
-            bg.clear();
-            bg.fillStyle(0x00ffff, 0.2);
-            bg.lineStyle(2, 0x00ffff, 1);
-            bg.fillRoundedRect(-width / 2, -height / 2, width, height, 10);
-            bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 10);
+        bg.on('pointerover', () => {
+            bg.setFillStyle(0x00ffff, 0.2);
             label.setColor('#ffffff');
         });
 
-        hitbox.on('pointerout', () => {
-            bg.clear();
-            bg.fillStyle(0x1a1a2e, 0.9);
-            bg.lineStyle(2, 0x00ffff, 1);
-            bg.fillRoundedRect(-width / 2, -height / 2, width, height, 10);
-            bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 10);
+        bg.on('pointerout', () => {
+            bg.setFillStyle(0x1a1a2e, 0.9);
             label.setColor('#00ffff');
         });
 
         // 点击事件
-        hitbox.on('pointerdown', () => {
+        bg.on('pointerdown', () => {
             callback();
         });
     }
@@ -200,23 +179,100 @@ export default class MenuScene extends Phaser.Scene {
      * 显示设置
      */
     private showSettings(): void {
-        // TODO: 实现设置界面
-        console.log('Settings not implemented yet');
+        // 创建设置面板
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
+
+        // 半透明背景
+        const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.7);
+        overlay.setInteractive();
+
+        // 设置面板
+        const panel = this.add.rectangle(width / 2, height / 2, 400, 300, 0x1a1a2e, 1);
+        panel.setStrokeStyle(2, 0x00ffff, 1);
+
+        // 标题
+        const title = this.add.text(width / 2, height / 2 - 100, '设置', {
+            fontSize: '32px',
+            fontStyle: 'bold',
+            color: '#00ffff',
+            fontFamily: 'Courier New, monospace'
+        });
+        title.setOrigin(0.5);
+
+        // 关闭按钮
+        const closeBtn = this.add.rectangle(width / 2, height / 2 + 100, 200, 50, 0x1a1a2e, 1);
+        closeBtn.setStrokeStyle(2, 0xff4444, 1);
+        const closeLabel = this.add.text(width / 2, height / 2 + 100, '关闭', {
+            fontSize: '24px',
+            color: '#ff4444',
+            fontFamily: 'Courier New, monospace'
+        });
+        closeLabel.setOrigin(0.5);
+
+        closeBtn.setInteractive({ useHandCursor: true });
+        closeBtn.on('pointerdown', () => {
+            overlay.destroy();
+            panel.destroy();
+            title.destroy();
+            closeBtn.destroy();
+            closeLabel.destroy();
+        });
     }
 
     /**
      * 显示关于
      */
     private showAbout(): void {
-        // TODO: 实现关于界面
-        console.log('About not implemented yet');
-    }
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
 
-    /**
-     * 退出游戏
-     */
-    private quitGame(): void {
-        // 在浏览器中无法真正退出，这里可以重置到主菜单
-        console.log('Quit game');
+        // 半透明背景
+        const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.7);
+        overlay.setInteractive();
+
+        // 关于面板
+        const panel = this.add.rectangle(width / 2, height / 2, 500, 350, 0x1a1a2e, 1);
+        panel.setStrokeStyle(2, 0x00ffff, 1);
+
+        // 标题
+        const title = this.add.text(width / 2, height / 2 - 120, '关于游戏', {
+            fontSize: '32px',
+            fontStyle: 'bold',
+            color: '#00ffff',
+            fontFamily: 'Courier New, monospace'
+        });
+        title.setOrigin(0.5);
+
+        // 描述文字
+        const desc = this.add.text(width / 2, height / 2 - 20, 
+            '赛博朋克风格的肉鸽游戏\n\n使用 WASD 或方向键移动\n击败敌人获得经验和物品\n生存尽可能长的时间', {
+            fontSize: '18px',
+            color: '#ffffff',
+            fontFamily: 'Courier New, monospace',
+            align: 'center',
+            lineSpacing: 10
+        });
+        desc.setOrigin(0.5);
+
+        // 关闭按钮
+        const closeBtn = this.add.rectangle(width / 2, height / 2 + 120, 200, 50, 0x1a1a2e, 1);
+        closeBtn.setStrokeStyle(2, 0xff4444, 1);
+        const closeLabel = this.add.text(width / 2, height / 2 + 120, '关闭', {
+            fontSize: '24px',
+            color: '#ff4444',
+            fontFamily: 'Courier New, monospace'
+        });
+        closeLabel.setOrigin(0.5);
+
+        closeBtn.setInteractive({ useHandCursor: true });
+        closeBtn.on('pointerdown', () => {
+            overlay.destroy();
+            panel.destroy();
+            title.destroy();
+            desc.destroy();
+            closeBtn.destroy();
+            closeLabel.destroy();
+        });
     }
 }
