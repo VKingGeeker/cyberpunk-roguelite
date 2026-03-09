@@ -23,6 +23,7 @@ export default class Player extends Phaser.GameObjects.Sprite {
     private skillPoints: number = 0;
     private killCount: number = 0;
     private isDead: boolean = false;
+    private invincibleTime: number = 0; // 无敌时间（毫秒）
 
     // 被动技能冷却
     private passiveSkillCooldowns: Map<string, number> = new Map();
@@ -88,6 +89,17 @@ export default class Player extends Phaser.GameObjects.Sprite {
      */
     update(time: number, delta: number): void {
         if (this.combatState.isStunned || this.isDead) return;
+
+        // 更新无敌时间
+        if (this.invincibleTime > 0) {
+            this.invincibleTime -= delta;
+            // 无敌时闪烁效果
+            this.setAlpha(Math.sin(time * 0.02) * 0.3 + 0.7);
+            if (this.invincibleTime <= 0) {
+                this.invincibleTime = 0;
+                this.setAlpha(1);
+            }
+        }
 
         // 移动控制
         this.handleMovement(delta);
@@ -267,7 +279,7 @@ export default class Player extends Phaser.GameObjects.Sprite {
 
         for (const enemy of enemies) {
             const distance = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
-            if (distance < nearestDistance && distance > 100 && distance < 400) {
+            if (distance < nearestDistance && distance > 150 && distance < 400) {
                 nearestDistance = distance;
                 nearestEnemy = enemy;
             }
@@ -275,15 +287,23 @@ export default class Player extends Phaser.GameObjects.Sprite {
 
         if (!nearestEnemy) return;
 
-        // 瞬移到敌人位置
+        // 瞬移到敌人位置（保持更远距离）
         const angle = Phaser.Math.Angle.Between(this.x, this.y, nearestEnemy.x, nearestEnemy.y);
-        this.x = nearestEnemy.x - Math.cos(angle) * 30;
-        this.y = nearestEnemy.y - Math.sin(angle) * 30;
+        this.x = nearestEnemy.x - Math.cos(angle) * 60; // 改为60像素距离
+        this.y = nearestEnemy.y - Math.sin(angle) * 60;
+
+        // 给玩家短暂无敌时间（1秒）
+        this.invincibleTime = 1000;
 
         // 造成伤害
         const damageResult = CombatSystem.calculateSkillDamage(this.stats, nearestEnemy.getStats(), 3.0);
         nearestEnemy.takeDamage(Math.floor(damageResult.damage));
         this.showDamageNumber(nearestEnemy.x, nearestEnemy.y, Math.floor(damageResult.damage), damageResult.isCrit);
+
+        // 眩晕敌人
+        if (nearestEnemy.stun) {
+            nearestEnemy.stun(500);
+        }
 
         // 显示特效
         this.createSkillEffect('dash', 50);
@@ -338,6 +358,11 @@ export default class Player extends Phaser.GameObjects.Sprite {
     public takeDamage(damage: number): void {
         if (this.isDead) return;
 
+        // 无敌时间内不受伤害
+        if (this.invincibleTime > 0) {
+            return;
+        }
+
         // 计算实际伤害
         const actualDamage = Math.max(1, damage - this.stats.defense);
         this.stats.hp -= actualDamage;
@@ -389,6 +414,8 @@ export default class Player extends Phaser.GameObjects.Sprite {
      */
     public reset(): void {
         this.isDead = false;
+        this.invincibleTime = 0;
+        this.setAlpha(1);
         this.initializeStats();
         this.killCount = 0;
         this.experience = 0;
