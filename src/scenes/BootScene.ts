@@ -133,10 +133,19 @@ export default class BootScene extends Phaser.Scene {
      * 创建赛博朋克风格纹理
      */
     private createCyberpunkTextures(): void {
-        // 创建玩家纹理 - 赛博改造人
-        this.createCyberPlayerTexture('player_idle');
-        this.createCyberPlayerTexture('player_run');
-        this.createCyberPlayerTexture('player_attack');
+        // 创建玩家纹理 - 赛博战士（带动画帧）
+        // Idle帧
+        for (let i = 0; i < 4; i++) {
+            this.createCyberPlayerTexture(`player_idle_${i}`, 'idle', i);
+        }
+        // Run帧
+        for (let i = 0; i < 4; i++) {
+            this.createCyberPlayerTexture(`player_run_${i}`, 'run', i);
+        }
+        // Attack帧
+        for (let i = 0; i < 4; i++) {
+            this.createCyberPlayerTexture(`player_attack_${i}`, 'attack', i);
+        }
 
         // 创建敌人纹理 - 机械改造体
         this.createCyberEnemyTexture('enemy_common_idle', 'common');
@@ -161,174 +170,212 @@ export default class BootScene extends Phaser.Scene {
 
         // 创建升级道具纹理 - 数据芯片风格
         this.createCyberPowerUpTextures();
+
+        // 创建玩家动画
+        this.createPlayerAnimations();
     }
 
     /**
-     * 创建赛博玩家纹理 - 灵动的赛博朋克战士
+     * 创建玩家动画
      */
-    private createCyberPlayerTexture(key: string): void {
+    private createPlayerAnimations(): void {
+        // Idle动画
+        if (!this.anims.exists('player_idle_anim')) {
+            this.anims.create({
+                key: 'player_idle_anim',
+                frames: [
+                    { key: 'player_idle_0' },
+                    { key: 'player_idle_1' },
+                    { key: 'player_idle_2' },
+                    { key: 'player_idle_3' }
+                ],
+                frameRate: 8,
+                repeat: -1
+            });
+        }
+
+        // Run动画
+        if (!this.anims.exists('player_run_anim')) {
+            this.anims.create({
+                key: 'player_run_anim',
+                frames: [
+                    { key: 'player_run_0' },
+                    { key: 'player_run_1' },
+                    { key: 'player_run_2' },
+                    { key: 'player_run_3' }
+                ],
+                frameRate: 10,
+                repeat: -1
+            });
+        }
+
+        // Attack动画
+        if (!this.anims.exists('player_attack_anim')) {
+            this.anims.create({
+                key: 'player_attack_anim',
+                frames: [
+                    { key: 'player_attack_0' },
+                    { key: 'player_attack_1' },
+                    { key: 'player_attack_2' },
+                    { key: 'player_attack_3' }
+                ],
+                frameRate: 12,
+                repeat: 0
+            });
+        }
+    }
+
+    /**
+     * 创建赛博玩家纹理 - 灵动的赛博朋克女战士
+     * @param key 纹理键名
+     * @param animType 动画类型: 'idle' | 'run' | 'attack'
+     * @param frameIndex 帧索引 0-3
+     */
+    private createCyberPlayerTexture(key: string, animType: string = 'idle', frameIndex: number = 0): void {
         const graphics = this.add.graphics();
         const size = 48;
         const center = size / 2;
 
-        // 根据纹理类型决定动画帧
-        const isRunning = key.includes('run');
-        const isAttacking = key.includes('attack');
+        const isRunning = animType === 'run';
+        const isAttacking = animType === 'attack';
         
-        // 角色基础偏移
-        const leanOffset = isAttacking ? 3 : 0;
+        // 动画偏移
+        const runPhase = frameIndex;
+        const legOffset = isRunning ? Math.sin(runPhase * Math.PI / 2) * 3 : 0;
+        const armOffset = isRunning ? Math.sin(runPhase * Math.PI / 2 + Math.PI) * 2 : 0;
+        const bodyBob = isRunning ? Math.abs(Math.sin(runPhase * Math.PI / 2)) * 1 : 0;
+        const attackLean = isAttacking ? Math.min(frameIndex * 2, 5) : 0;
+        const capeWave = isRunning ? Math.sin(runPhase * Math.PI / 2) * 3 : 0;
 
-        // ========== 飘逸能量尾迹/披风 ==========
-        graphics.fillStyle(0x00ffff, 0.15);
+        // 角色阴影
+        graphics.fillStyle(0x000000, 0.3);
+        graphics.fillEllipse(center, center + 22, 14, 5);
+
+        // 动态披风
+        graphics.fillStyle(0x1a0a2e, 0.85);
         graphics.fillTriangle(
-            center - 5 + leanOffset, center + 2,
-            center - 14 + leanOffset, center + 18,
-            center + 2 + leanOffset, center + 15
+            center - 6 - attackLean, center - 2 - bodyBob,
+            center - 12 - attackLean - capeWave, center + 15 - bodyBob,
+            center - 2 - attackLean, center + 8 - bodyBob
+        );
+        graphics.fillStyle(0xff00ff, 0.25);
+        graphics.fillTriangle(
+            center - 8 - attackLean, center - bodyBob,
+            center - 14 - attackLean - capeWave, center + 12 - bodyBob,
+            center - 4 - attackLean, center + 5 - bodyBob
         );
 
-        // ========== 能量光环 ==========
-        graphics.fillStyle(0x00ffff, 0.08);
-        graphics.fillCircle(center, center - 5, 20);
-        graphics.fillStyle(0xff00ff, 0.05);
-        graphics.fillCircle(center, center - 5, 16);
-
-        // ========== 身体 - 修身战斗服 ==========
-        // 主体 - 深紫色紧身战斗服
+        // 身体 - 修身战斗服
         graphics.fillStyle(0x1a0a2e, 1);
-        graphics.fillRoundedRect(center - 8 + leanOffset, center - 4, 16, 22, 4);
-        
-        // 胸甲装饰
+        graphics.fillRoundedRect(center - 7 - attackLean, center - 4 - bodyBob, 14, 18, 4);
         graphics.fillStyle(0x2a1a3e, 1);
-        graphics.fillRoundedRect(center - 6 + leanOffset, center - 2, 12, 8, 2);
-
-        // ========== 霓虹战斗纹路 ==========
-        graphics.lineStyle(1.5, 0x00ffff, 1);
-        // 身体中央能量线
-        graphics.lineBetween(center + leanOffset, center, center + leanOffset, center + 14);
+        graphics.fillRoundedRect(center - 5 - attackLean, center - 2 - bodyBob, 10, 7, 2);
         
-        // 菱形能量节点
+        // 霓虹能量线
+        graphics.lineStyle(1, 0x00ffff, 0.9);
+        graphics.lineBetween(center - attackLean, center - bodyBob, center - attackLean, center + 10 - bodyBob);
         graphics.fillStyle(0x00ffff, 1);
-        graphics.fillTriangle(
-            center + leanOffset, center + 2,
-            center + 3 + leanOffset, center + 5,
-            center + leanOffset, center + 8
-        );
-        graphics.fillTriangle(
-            center + leanOffset, center + 2,
-            center - 3 + leanOffset, center + 5,
-            center + leanOffset, center + 8
-        );
+        graphics.fillCircle(center - attackLean, center + 4 - bodyBob, 2.5);
+        graphics.fillStyle(0xffffff, 0.8);
+        graphics.fillCircle(center - attackLean, center + 4 - bodyBob, 1.2);
 
-        // ========== 手臂 - 动态姿势 ==========
+        // 手臂
         graphics.fillStyle(0x2a1a3e, 1);
-        // 左臂
-        const leftArmX = center - 13 - (isAttacking ? 4 : 0);
-        graphics.fillRoundedRect(leftArmX + leanOffset, center - 2, 5, 14, 2);
-        // 左手能量手套
-        graphics.fillStyle(0x00ffff, 0.9);
-        graphics.fillCircle(leftArmX + 2 + leanOffset, center + 13, 3);
+        const leftArmY = center - 1 - bodyBob + armOffset;
+        graphics.fillRoundedRect(center - 12 - attackLean, leftArmY, 4, 11, 2);
+        graphics.fillStyle(0xf0d0c0, 1);
+        graphics.fillCircle(center - 10 - attackLean, leftArmY + 13, 2.5);
         
-        // 右臂（攻击时前伸）
         graphics.fillStyle(0x2a1a3e, 1);
-        const rightArmX = center + 8 + (isAttacking ? 7 : 0);
-        graphics.fillRoundedRect(rightArmX + leanOffset, center - 2, 5, 14, 2);
-        // 右手能量手套
-        graphics.fillStyle(0xff00ff, 0.9);
-        graphics.fillCircle(rightArmX + 2 + leanOffset, center + 13, 3);
-
-        // 攻击时的能量爆发
-        if (isAttacking) {
-            graphics.lineStyle(2, 0xff00ff, 0.8);
-            graphics.lineBetween(rightArmX + 5 + leanOffset, center + 13, rightArmX + 15 + leanOffset, center + 10);
-            graphics.lineBetween(rightArmX + 5 + leanOffset, center + 13, rightArmX + 13 + leanOffset, center + 18);
+        const rightArmX = center + 8 + attackLean + (isRunning ? armOffset : 0);
+        graphics.fillRoundedRect(rightArmX, center - 1 - bodyBob, 4, 11, 2);
+        graphics.fillStyle(0xf0d0c0, 1);
+        graphics.fillCircle(rightArmX + 2, center + 11 - bodyBob, 2.5);
+        
+        // 武器效果（攻击时）
+        if (isAttacking && frameIndex >= 1) {
+            graphics.lineStyle(3, 0xff00ff, 0.85);
+            graphics.lineBetween(rightArmX + 4, center + 10 - bodyBob, rightArmX + 18 + frameIndex * 2, center - 5 - bodyBob);
+            graphics.lineStyle(1, 0xffffff, 0.7);
+            graphics.lineBetween(rightArmX + 4, center + 10 - bodyBob, rightArmX + 15 + frameIndex * 2, center - 3 - bodyBob);
         }
 
-        // ========== 腿部 - 动态姿态 ==========
+        // 腿部
         graphics.fillStyle(0x1a0a2e, 1);
-        // 左腿
-        const leftLegOffset = isRunning ? -2 : 0;
-        graphics.fillRoundedRect(center - 6 + leanOffset + leftLegOffset, center + 18, 5, 8, 2);
-        // 左靴
+        graphics.fillRoundedRect(center - 5 - attackLean + legOffset, center + 14 - bodyBob, 4, 7, 2);
         graphics.fillStyle(0x3a2a4e, 1);
-        graphics.fillRoundedRect(center - 7 + leanOffset + leftLegOffset, center + 24, 7, 4, 1);
+        graphics.fillRoundedRect(center - 6 - attackLean + legOffset, center + 20 - bodyBob, 6, 4, 1);
         
-        // 右腿
         graphics.fillStyle(0x1a0a2e, 1);
-        const rightLegOffset = isRunning ? 2 : 0;
-        graphics.fillRoundedRect(center + 1 + leanOffset + rightLegOffset, center + 18, 5, 8, 2);
-        // 右靴
+        graphics.fillRoundedRect(center + 1 - attackLean - legOffset, center + 14 - bodyBob, 4, 7, 2);
         graphics.fillStyle(0x3a2a4e, 1);
-        graphics.fillRoundedRect(center + leanOffset + rightLegOffset, center + 24, 7, 4, 1);
+        graphics.fillRoundedRect(center - attackLean - legOffset, center + 20 - bodyBob, 6, 4, 1);
+        
+        graphics.lineStyle(1, 0x00ffff, 0.6);
+        graphics.strokeRoundedRect(center - 6 - attackLean + legOffset, center + 20 - bodyBob, 6, 4, 1);
+        graphics.strokeRoundedRect(center - attackLean - legOffset, center + 20 - bodyBob, 6, 4, 1);
 
-        // 靴子霓虹边缘
-        graphics.lineStyle(1, 0x00ffff, 0.8);
-        graphics.strokeRoundedRect(center - 7 + leanOffset + leftLegOffset, center + 24, 7, 4, 1);
-        graphics.strokeRoundedRect(center + leanOffset + rightLegOffset, center + 24, 7, 4, 1);
+        // 头部
+        graphics.fillStyle(0xf0d0c0, 1);
+        graphics.fillCircle(center - attackLean, center - 11 - bodyBob, 6);
 
-        // ========== 头部 - 灵动的面庞 ==========
-        // 头部主体
-        graphics.fillStyle(0xf0d8c8, 1); // 肤色
-        graphics.fillCircle(center + leanOffset, center - 12, 8);
-
-        // 头发 - 霓虹紫发
-        graphics.fillStyle(0x2a0a3e, 1);
-        // 前刘海
+        // 头发
+        graphics.fillStyle(0x1a0a2e, 1);
+        graphics.fillRoundedRect(center - 5 - attackLean, center - 18 - bodyBob, 10, 7, 3);
         graphics.fillTriangle(
-            center - 6 + leanOffset, center - 14,
-            center + leanOffset, center - 20,
-            center + 6 + leanOffset, center - 14
+            center - 7 - attackLean - capeWave * 0.3, center - 12 - bodyBob,
+            center - 11 - attackLean - capeWave, center + 1 - bodyBob,
+            center - 1 - attackLean, center - 7 - bodyBob
         );
-        // 后部飘逸长发
         graphics.fillTriangle(
-            center - 10 + leanOffset, center - 10,
-            center - 8 + leanOffset, center + 5,
-            center + 2 + leanOffset, center - 8
+            center + 3 - attackLean, center - 14 - bodyBob,
+            center + 9 - attackLean, center - 7 - bodyBob,
+            center + 5 - attackLean, center - 10 - bodyBob
         );
-        // 右侧头发
+        graphics.fillStyle(0xff00ff, 0.7);
         graphics.fillTriangle(
-            center + 4 + leanOffset, center - 14,
-            center + 10 + leanOffset, center - 6,
-            center + 6 + leanOffset, center - 10
+            center - 9 - attackLean - capeWave, center - 4 - bodyBob,
+            center - 11 - attackLean - capeWave, center + 1 - bodyBob,
+            center - 7 - attackLean - capeWave * 0.5, center - 1 - bodyBob
         );
 
-        // 头发霓虹挑染
-        graphics.lineStyle(1.5, 0xff00ff, 0.9);
-        graphics.lineBetween(center - 10 + leanOffset, center - 10, center - 6 + leanOffset, center + 3);
-        graphics.lineBetween(center + 6 + leanOffset, center - 14, center + 9 + leanOffset, center - 5);
-
-        // ========== 面部特征 ==========
-        // 眼睛 - 炯炯有神的赛博眼
+        // 面部
+        graphics.lineStyle(0.8, 0x1a0a2e, 1);
+        graphics.lineBetween(center - 4 - attackLean, center - 13 - bodyBob, center - 2 - attackLean, center - 14 - bodyBob);
+        graphics.lineBetween(center + 2 - attackLean, center - 14 - bodyBob, center + 4 - attackLean, center - 13 - bodyBob);
+        
         graphics.fillStyle(0x00ffff, 1);
-        graphics.fillCircle(center - 3 + leanOffset, center - 12, 2);
-        graphics.fillCircle(center + 3 + leanOffset, center - 12, 2);
-        
-        // 眼睛高光
+        graphics.fillCircle(center - 2 - attackLean, center - 11 - bodyBob, 1.3);
+        graphics.fillCircle(center + 2 - attackLean, center - 11 - bodyBob, 1.3);
         graphics.fillStyle(0xffffff, 1);
-        graphics.fillCircle(center - 2.5 + leanOffset, center - 12.5, 1);
-        graphics.fillCircle(center + 3.5 + leanOffset, center - 12.5, 1);
+        graphics.fillCircle(center - 2 - attackLean, center - 12 - bodyBob, 0.6);
+        graphics.fillCircle(center + 2 - attackLean, center - 12 - bodyBob, 0.6);
+        
+        graphics.lineStyle(0.5, 0x00ffff, 0.4);
+        graphics.strokeCircle(center - 2 - attackLean, center - 11 - bodyBob, 2.2);
+        graphics.strokeCircle(center + 2 - attackLean, center - 11 - bodyBob, 2.2);
+        
+        graphics.fillStyle(0xe0c0b0, 1);
+        graphics.fillCircle(center - attackLean, center - 9 - bodyBob, 0.7);
+        
+        graphics.lineStyle(0.8, 0xcc6688, 0.85);
+        graphics.lineBetween(center - 1.5 - attackLean, center - 7 - bodyBob, center + 1.5 - attackLean, center - 7 - bodyBob);
 
-        // 眼睛光晕
-        graphics.fillStyle(0x00ffff, 0.2);
-        graphics.fillCircle(center - 3 + leanOffset, center - 12, 4);
-        graphics.fillCircle(center + 3 + leanOffset, center - 12, 4);
+        // 赛博改造
+        graphics.fillStyle(0x00ffff, 0.6);
+        graphics.fillRect(center + 5 - attackLean, center - 9 - bodyBob, 1.5, 3);
+        graphics.fillStyle(0x2a2a3e, 1);
+        graphics.fillCircle(center - 7 - attackLean, center - 10 - bodyBob, 1.8);
+        graphics.fillStyle(0xff00ff, 0.7);
+        graphics.fillCircle(center - 7 - attackLean, center - 10 - bodyBob, 0.9);
 
-        // 嘴巴 - 微笑
-        graphics.lineStyle(1, 0xff6699, 0.8);
-        graphics.lineBetween(center - 2 + leanOffset, center - 8, center + 2 + leanOffset, center - 8);
-
-        // ========== 能量耳环 ==========
-        graphics.fillStyle(0xff00ff, 0.9);
-        graphics.fillCircle(center - 8 + leanOffset, center - 10, 1.5);
-        graphics.fillStyle(0x00ffff, 0.9);
-        graphics.fillCircle(center + 8 + leanOffset, center - 10, 1.5);
-
-        // ========== 漂浮能量粒子 ==========
-        graphics.fillStyle(0x00ffff, 0.5);
-        graphics.fillCircle(center - 16 + leanOffset, center - 5, 2);
-        graphics.fillCircle(center + 16 + leanOffset, center, 2);
-        graphics.fillStyle(0xff00ff, 0.5);
-        graphics.fillCircle(center - 13 + leanOffset, center + 10, 2);
-        graphics.fillCircle(center + 13 + leanOffset, center + 15, 2);
+        // 漂浮粒子
+        graphics.fillStyle(0x00ffff, 0.35);
+        graphics.fillCircle(center - 14 - attackLean, center - 4 - bodyBob, 1.3);
+        graphics.fillCircle(center + 14 - attackLean, center - bodyBob, 1.3);
+        graphics.fillStyle(0xff00ff, 0.35);
+        graphics.fillCircle(center - 11 - attackLean, center + 7 - bodyBob, 1.3);
+        graphics.fillCircle(center + 11 - attackLean, center + 10 - bodyBob, 1.3);
 
         graphics.generateTexture(key, size, size);
         graphics.destroy();
@@ -469,14 +516,15 @@ export default class BootScene extends Phaser.Scene {
      */
     private createCyberWeaponIcons(): void {
         const weapons = [
-            { key: 'icon_vibroblade', color: 0x00ffff, name: 'blade' },
-            { key: 'icon_heatkatana', color: 0xff6600, name: 'katana' },
-            { key: 'icon_highfreqblade', color: 0xff00ff, name: 'freq' },
-            { key: 'icon_thunderaxe', color: 0xffff00, name: 'axe' }
+            { key: 'weapon_sword', color: 0x00ffff, type: 'sword' },
+            { key: 'weapon_blade', color: 0xff00ff, type: 'blade' },
+            { key: 'weapon_staff', color: 0xffff00, type: 'staff' },
+            { key: 'weapon_hammer', color: 0xff6600, type: 'hammer' },
+            { key: 'weapon_dagger', color: 0x44ff44, type: 'dagger' }
         ];
 
         for (const weapon of weapons) {
-            this.createCyberWeaponIcon(weapon.key, weapon.color, weapon.name);
+            this.createCyberWeaponIcon(weapon.key, weapon.color, weapon.type);
         }
     }
 
@@ -504,40 +552,71 @@ export default class BootScene extends Phaser.Scene {
         graphics.lineStyle(3, color, 1);
         graphics.fillStyle(color, 0.8);
 
-        if (type === 'blade') {
-            // 震动刀
-            graphics.moveTo(center, 12);
+        if (type === 'sword') {
+            // 长剑 - 垂直剑身
+            graphics.moveTo(center, 10);
             graphics.lineTo(center, 36);
             graphics.strokePath();
-            graphics.lineStyle(1, 0xffffff, 0.5);
-            graphics.moveTo(center - 4, 16);
-            graphics.lineTo(center + 4, 16);
-            graphics.moveTo(center - 4, 20);
-            graphics.lineTo(center + 4, 20);
+            // 护手
+            graphics.lineStyle(2, color, 1);
+            graphics.moveTo(center - 8, 32);
+            graphics.lineTo(center + 8, 32);
             graphics.strokePath();
-        } else if (type === 'katana') {
-            // 热能刀 - 使用折线代替曲线
-            graphics.moveTo(center - 8, 36);
-            graphics.lineTo(center - 4, 20);
+            // 剑尖
+            graphics.fillStyle(color, 1);
+            graphics.fillTriangle(center, 10, center - 3, 14, center + 3, 14);
+        } else if (type === 'blade') {
+            // 刀刃 - 弧形刀身
+            graphics.moveTo(center - 6, 36);
+            graphics.lineTo(center - 4, 28);
             graphics.lineTo(center, 14);
-            graphics.lineTo(center + 4, 20);
-            graphics.lineTo(center + 8, 36);
+            graphics.lineTo(center + 4, 28);
+            graphics.lineTo(center + 6, 36);
             graphics.strokePath();
-        } else if (type === 'freq') {
-            // 高频刀
-            for (let i = 0; i < 3; i++) {
-                graphics.moveTo(center - 8 + i * 8, 14);
-                graphics.lineTo(center - 8 + i * 8, 34);
-            }
+            // 刀刃光泽
+            graphics.lineStyle(1, 0xffffff, 0.6);
+            graphics.moveTo(center, 16);
+            graphics.lineTo(center, 30);
             graphics.strokePath();
-        } else if (type === 'axe') {
-            // 雷霆斧
+        } else if (type === 'staff') {
+            // 法杖 - 长杖
+            graphics.lineStyle(3, color, 1);
             graphics.moveTo(center, 12);
-            graphics.lineTo(center, 36);
-            graphics.moveTo(center, 20);
-            graphics.lineTo(center + 12, 24);
-            graphics.lineTo(center, 28);
+            graphics.lineTo(center, 38);
             graphics.strokePath();
+            // 顶端能量球
+            graphics.fillStyle(color, 1);
+            graphics.fillCircle(center, 12, 5);
+            // 能量光环
+            graphics.lineStyle(1, color, 0.5);
+            graphics.strokeCircle(center, 12, 8);
+        } else if (type === 'hammer') {
+            // 重锤 - 锤头 + 锤柄
+            graphics.lineStyle(3, color, 1);
+            graphics.moveTo(center, 18);
+            graphics.lineTo(center, 38);
+            graphics.strokePath();
+            // 锤头
+            graphics.fillStyle(color, 1);
+            graphics.fillRect(center - 10, 10, 20, 12);
+            // 锤头装饰
+            graphics.lineStyle(1, 0xffffff, 0.5);
+            graphics.moveTo(center - 8, 16);
+            graphics.lineTo(center + 8, 16);
+            graphics.strokePath();
+        } else if (type === 'dagger') {
+            // 匕首 - 短剑身
+            graphics.moveTo(center, 14);
+            graphics.lineTo(center, 34);
+            graphics.strokePath();
+            // 护手
+            graphics.lineStyle(2, color, 1);
+            graphics.moveTo(center - 6, 30);
+            graphics.lineTo(center + 6, 30);
+            graphics.strokePath();
+            // 双刃效果
+            graphics.fillStyle(color, 0.8);
+            graphics.fillTriangle(center, 14, center - 4, 24, center + 4, 24);
         }
 
         graphics.generateTexture(key, size, size);
@@ -642,7 +721,17 @@ export default class BootScene extends Phaser.Scene {
             { key: 'icon_shield', color: 0x44ff44, name: '纳米护盾' },
             { key: 'icon_emp', color: 0x4488ff, name: 'EMP冲击' },
             { key: 'icon_overdrive', color: 0xff8800, name: '超频驱动' },
-            { key: 'icon_hologram', color: 0xaa44ff, name: '全息幻影' }
+            { key: 'icon_hologram', color: 0xaa44ff, name: '全息幻影' },
+            // 新增技能图标
+            { key: 'icon_orb', color: 0xff66ff, name: '等离子球' },
+            { key: 'icon_nova', color: 0xffaa00, name: '能量新星' },
+            { key: 'icon_sonic', color: 0x00aaff, name: '音爆冲击' },
+            { key: 'icon_flame', color: 0xff4400, name: '烈焰波' },
+            { key: 'icon_void', color: 0x8800ff, name: '虚空裂缝' },
+            { key: 'icon_time', color: 0x00ffaa, name: '时间扭曲' },
+            { key: 'icon_nanite', color: 0x88ff00, name: '纳米虫群' },
+            { key: 'icon_drain', color: 0xff0066, name: '能量汲取' },
+            { key: 'icon_ice', color: 0x88ffff, name: '冰霜碎片' }
         ];
 
         for (const skill of skills) {
@@ -780,6 +869,109 @@ export default class BootScene extends Phaser.Scene {
             graphics.moveTo(center - 5, center);
             graphics.lineTo(center + 7, center);
             graphics.strokePath();
+        } else if (name === '等离子球') {
+            // 等离子球 - 能量球体
+            graphics.fillStyle(color, 0.8);
+            graphics.fillCircle(center, center, 10);
+            graphics.fillStyle(0xffffff, 0.6);
+            graphics.fillCircle(center - 3, center - 3, 4);
+            // 外环
+            graphics.lineStyle(2, color, 0.5);
+            graphics.strokeCircle(center, center, 13);
+        } else if (name === '能量新星') {
+            // 能量新星 - 爆发光芒
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                graphics.moveTo(center, center);
+                graphics.lineTo(center + Math.cos(angle) * 14, center + Math.sin(angle) * 14);
+            }
+            graphics.strokePath();
+            graphics.fillStyle(color, 1);
+            graphics.fillCircle(center, center, 5);
+        } else if (name === '音爆冲击') {
+            // 音爆冲击 - 冲击波
+            graphics.lineStyle(3, color, 1);
+            graphics.strokeCircle(center, center, 8);
+            graphics.lineStyle(2, color, 0.7);
+            graphics.strokeCircle(center, center, 12);
+            graphics.lineStyle(1, color, 0.4);
+            graphics.strokeCircle(center, center, 16);
+        } else if (name === '烈焰波') {
+            // 烈焰波 - 火焰
+            graphics.fillStyle(color, 1);
+            graphics.beginPath();
+            graphics.moveTo(center, center - 12);
+            graphics.lineTo(center + 8, center + 8);
+            graphics.lineTo(center, center + 2);
+            graphics.lineTo(center - 8, center + 8);
+            graphics.closePath();
+            graphics.fillPath();
+            // 内焰
+            graphics.fillStyle(0xffff00, 0.8);
+            graphics.beginPath();
+            graphics.moveTo(center, center - 6);
+            graphics.lineTo(center + 4, center + 4);
+            graphics.lineTo(center - 4, center + 4);
+            graphics.closePath();
+            graphics.fillPath();
+        } else if (name === '虚空裂缝') {
+            // 虚空裂缝 - 空间裂缝
+            graphics.fillStyle(color, 0.8);
+            graphics.beginPath();
+            graphics.moveTo(center - 10, center - 8);
+            graphics.lineTo(center + 12, center - 4);
+            graphics.lineTo(center + 8, center + 8);
+            graphics.lineTo(center - 12, center + 4);
+            graphics.closePath();
+            graphics.fillPath();
+            // 内部能量
+            graphics.fillStyle(0xffffff, 0.5);
+            graphics.fillCircle(center, center, 4);
+        } else if (name === '时间扭曲') {
+            // 时间扭曲 - 时钟
+            graphics.strokeCircle(center, center, 12);
+            // 时针
+            graphics.lineStyle(3, color, 1);
+            graphics.moveTo(center, center);
+            graphics.lineTo(center + 6, center - 6);
+            graphics.moveTo(center, center);
+            graphics.lineTo(center - 4, center + 4);
+            graphics.strokePath();
+            // 时间粒子
+            graphics.fillStyle(color, 0.5);
+            graphics.fillCircle(center + 10, center - 2, 2);
+            graphics.fillCircle(center - 10, center + 2, 2);
+        } else if (name === '纳米虫群') {
+            // 纳米虫群 - 多个小点
+            for (let i = 0; i < 12; i++) {
+                const x = center + (Math.random() - 0.5) * 24;
+                const y = center + (Math.random() - 0.5) * 24;
+                graphics.fillStyle(color, 0.8);
+                graphics.fillCircle(x, y, 2);
+            }
+        } else if (name === '能量汲取') {
+            // 能量汲取 - 吸取符号
+            graphics.fillStyle(color, 0.8);
+            graphics.fillCircle(center, center, 10);
+            // 内部漩涡
+            graphics.lineStyle(2, 0xffffff, 0.8);
+            graphics.beginPath();
+            for (let i = 0; i < 3; i++) {
+                const r = 3 + i * 3;
+                graphics.arc(center, center, r, 0, Math.PI * 1.5);
+            }
+            graphics.strokePath();
+        } else if (name === '冰霜碎片') {
+            // 冰霜碎片 - 冰晶
+            for (let i = 0; i < 6; i++) {
+                const angle = (i / 6) * Math.PI * 2;
+                graphics.moveTo(center, center);
+                graphics.lineTo(center + Math.cos(angle) * 12, center + Math.sin(angle) * 12);
+            }
+            graphics.strokePath();
+            // 中心
+            graphics.fillStyle(color, 1);
+            graphics.fillCircle(center, center, 4);
         }
 
         graphics.generateTexture(key, size, size);

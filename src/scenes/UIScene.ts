@@ -38,6 +38,7 @@ export default class UIScene extends Phaser.Scene {
 
         // 创建UI元素
         this.createHealthBar();
+        this.createWeaponBar();
         this.createSkillBar();
         this.createExperienceBar();
         this.createKillCounter();
@@ -47,6 +48,8 @@ export default class UIScene extends Phaser.Scene {
         this.scene.get('GameScene').events.on('updateHealth', this.updateHealth, this);
         this.scene.get('GameScene').events.on('updateExperience', this.updateExperience, this);
         this.scene.get('GameScene').events.on('skill-changed', this.updateSkillDisplay, this);
+        this.scene.get('GameScene').events.on('updateKillCount', this.updateKillCount, this);
+        this.scene.get('GameScene').events.on('weapon-changed', this.updateWeaponDisplay, this);
     }
 
     /**
@@ -127,40 +130,154 @@ export default class UIScene extends Phaser.Scene {
     }
 
     /**
+     * 创建武器栏 - 显示当前武器和武器槽位
+     */
+    private createWeaponBar(): void {
+        const x = this.cameras.main.width - 180;
+        const y = this.cameras.main.height - 80;
+        const size = 50;
+
+        // 武器栏背景
+        const bg = this.add.graphics();
+        bg.fillStyle(0x0a0a1a, 0.9);
+        bg.fillRoundedRect(x - 10, y - size/2 - 20, 170, size + 50, 8);
+        bg.lineStyle(2, 0xff00ff, 0.5);
+        bg.strokeRoundedRect(x - 10, y - size/2 - 20, 170, size + 50, 8);
+
+        // 标题
+        const title = this.add.text(x + 75, y - size/2 - 15, 'WEAPON', {
+            fontSize: '12px',
+            fontStyle: 'bold',
+            color: '#ff00ff',
+            fontFamily: 'Courier New, monospace'
+        });
+        title.setOrigin(0.5, 0);
+
+        // 初始显示武器
+        this.updateWeaponDisplay();
+    }
+
+    /**
+     * 更新武器显示
+     */
+    public updateWeaponDisplay(): void {
+        if (!this.player) return;
+
+        const x = this.cameras.main.width - 180;
+        const y = this.cameras.main.height - 80;
+        const size = 50;
+
+        // 清除旧的武器显示（通过标签查找）
+        this.children.each((child: Phaser.GameObjects.GameObject) => {
+            if (child instanceof Phaser.GameObjects.Graphics || 
+                child instanceof Phaser.GameObjects.Text ||
+                child instanceof Phaser.GameObjects.Image) {
+                if (child.getData('isWeaponUI')) {
+                    child.destroy();
+                }
+            }
+        });
+
+        const weaponSlots = this.player.getWeaponSlots();
+        const currentWeapon = this.player.getCurrentWeapon();
+
+        // 稀有度颜色
+        const rarityColors: Record<string, number> = {
+            'common': 0x888888,
+            'rare': 0x4488ff,
+            'epic': 0xaa44ff,
+            'legendary': 0xffaa00
+        };
+
+        // 显示武器槽位
+        weaponSlots.forEach((weapon, index) => {
+            const slotX = x + 10 + index * 55;
+            const slotBg = this.add.graphics();
+            slotBg.setData('isWeaponUI', true);
+
+            if (weapon) {
+                const color = rarityColors[weapon.rarity] || 0xffffff;
+                
+                // 槽位背景
+                slotBg.fillStyle(0x1a1a2e, 1);
+                slotBg.fillRoundedRect(slotX, y - size/2, size, size, 6);
+                slotBg.lineStyle(2, color, index === 0 ? 1 : 0.5);
+                slotBg.strokeRoundedRect(slotX, y - size/2, size, size, 6);
+
+                // 武器图标
+                const weaponType = weapon.type;
+                const iconKey = `weapon_${weaponType}`;
+                const icon = this.add.image(slotX + size/2, y, iconKey);
+                icon.setDisplaySize(size - 10, size - 10);
+                icon.setOrigin(0.5);
+                icon.setData('isWeaponUI', true);
+
+                // 武器名称
+                const nameText = this.add.text(slotX + size/2, y + size/2 + 8, weapon.name.substring(0, 4), {
+                    fontSize: '9px',
+                    color: `#${color.toString(16).padStart(6, '0')}`,
+                    fontFamily: 'Courier New, monospace'
+                });
+                nameText.setOrigin(0.5);
+                nameText.setData('isWeaponUI', true);
+            } else {
+                // 空槽位
+                slotBg.fillStyle(0x1a1a2e, 0.3);
+                slotBg.fillRoundedRect(slotX, y - size/2, size, size, 6);
+                slotBg.lineStyle(1, 0x333344, 0.5);
+                slotBg.strokeRoundedRect(slotX, y - size/2, size, size, 6);
+
+                // 槽位编号
+                const slotNum = this.add.text(slotX + size/2, y, `${index + 1}`, {
+                    fontSize: '16px',
+                    color: '#444466',
+                    fontFamily: 'Courier New, monospace'
+                });
+                slotNum.setOrigin(0.5);
+                slotNum.setData('isWeaponUI', true);
+            }
+        });
+
+        // 显示当前武器详细信息
+        if (currentWeapon) {
+            const infoY = y + size/2 + 25;
+            const color = rarityColors[currentWeapon.rarity] || 0xffffff;
+            
+            const infoText = this.add.text(x + 75, infoY, 
+                `ATK: ${currentWeapon.attack} | SPD: ${currentWeapon.attackSpeed.toFixed(1)}`, {
+                fontSize: '10px',
+                color: `#${color.toString(16).padStart(6, '0')}`,
+                fontFamily: 'Courier New, monospace'
+            });
+            infoText.setOrigin(0.5);
+            infoText.setData('isWeaponUI', true);
+        }
+    }
+
+    /**
      * 创建技能栏（被动技能显示）- 动态显示已学技能
      */
     private createSkillBar(): void {
         const startX = 20;
         const y = this.cameras.main.height - 130;
         const size = GAME_CONFIG.ui.skillIconSize;
-        const maxSlots = 5; // 最多显示5个技能
+        const maxSlots = 6; // 最多显示6个技能，缩小间距
 
         // 技能栏背景
         const bg = this.add.graphics();
         bg.fillStyle(0x0a0a1a, 0.9);
-        bg.fillRoundedRect(startX - 10, y - size/2 - 10, size * maxSlots + 20 + (maxSlots - 1) * 10, size + 60, 8);
+        bg.fillRoundedRect(startX - 10, y - size/2 - 15, size * maxSlots + 15 * (maxSlots - 1) + 20, size + 45, 8);
         bg.lineStyle(2, 0x00ffff, 0.5);
-        bg.strokeRoundedRect(startX - 10, y - size/2 - 10, size * maxSlots + 20 + (maxSlots - 1) * 10, size + 60, 8);
+        bg.strokeRoundedRect(startX - 10, y - size/2 - 15, size * maxSlots + 15 * (maxSlots - 1) + 20, size + 45, 8);
 
         // 标题
-        const title = this.add.text(startX + (size * maxSlots + (maxSlots - 1) * 10) / 2, y - size/2 - 5, 'SKILLS', {
-            fontSize: '10px',
+        const title = this.add.text(startX + (size * maxSlots + 15 * (maxSlots - 1)) / 2, y - size/2 - 10, 'SKILLS', {
+            fontSize: '12px',
+            fontStyle: 'bold',
             color: '#00ffff',
             fontFamily: 'Courier New, monospace'
         });
         title.setOrigin(0.5, 0);
-
-        // 创建占位技能槽
-        for (let i = 0; i < maxSlots; i++) {
-            const x = startX + i * (size + 10);
-            
-            // 空技能槽背景
-            const slotBg = this.add.graphics();
-            slotBg.fillStyle(0x1a1a2e, 0.5);
-            slotBg.fillRoundedRect(x, y - size/2, size, size, 6);
-            slotBg.lineStyle(1, 0x333344, 0.5);
-            slotBg.strokeRoundedRect(x, y - size/2, size, size, 6);
-        }
 
         // 初始更新技能显示
         this.updateSkillDisplay();
@@ -190,7 +307,17 @@ export default class UIScene extends Phaser.Scene {
             'skill_nanobot_shield': 'icon_shield',
             'skill_emp_burst': 'icon_emp',
             'skill_overdrive': 'icon_overdrive',
-            'skill_hologram': 'icon_hologram'
+            'skill_hologram': 'icon_hologram',
+            // 新增技能
+            'skill_plasma_orb': 'icon_orb',
+            'skill_energy_nova': 'icon_nova',
+            'skill_sonic_boom': 'icon_sonic',
+            'skill_flame_wave': 'icon_flame',
+            'skill_void_rift': 'icon_void',
+            'skill_time_warp': 'icon_time',
+            'skill_nanite_swarm': 'icon_nanite',
+            'skill_energy_drain': 'icon_drain',
+            'skill_ice_shard': 'icon_ice'
         };
 
         // 技能名称显示
@@ -202,7 +329,17 @@ export default class UIScene extends Phaser.Scene {
             'skill_nanobot_shield': '护盾',
             'skill_emp_burst': 'EMP',
             'skill_overdrive': '超频',
-            'skill_hologram': '幻影'
+            'skill_hologram': '幻影',
+            // 新增技能
+            'skill_plasma_orb': '等离子球',
+            'skill_energy_nova': '新星',
+            'skill_sonic_boom': '音爆',
+            'skill_flame_wave': '烈焰',
+            'skill_void_rift': '虚空',
+            'skill_time_warp': '时间',
+            'skill_nanite_swarm': '虫群',
+            'skill_energy_drain': '汲取',
+            'skill_ice_shard': '冰霜'
         };
 
         // 技能颜色
@@ -214,14 +351,24 @@ export default class UIScene extends Phaser.Scene {
             'skill_nanobot_shield': 0x44ff44,
             'skill_emp_burst': 0x4488ff,
             'skill_overdrive': 0xff8800,
-            'skill_hologram': 0xaa44ff
+            'skill_hologram': 0xaa44ff,
+            // 新增技能
+            'skill_plasma_orb': 0xff66ff,
+            'skill_energy_nova': 0xffaa00,
+            'skill_sonic_boom': 0x00aaff,
+            'skill_flame_wave': 0xff4400,
+            'skill_void_rift': 0x8800ff,
+            'skill_time_warp': 0x00ffaa,
+            'skill_nanite_swarm': 0x88ff00,
+            'skill_energy_drain': 0xff0066,
+            'skill_ice_shard': 0x88ffff
         };
 
         let index = 0;
         ownedSkills.forEach((data, skillId) => {
-            if (index >= 5) return; // 最多显示5个
+            if (index >= 6) return; // 最多显示6个
 
-            const x = startX + index * (size + 10);
+            const x = startX + index * (size + 15);
             const iconKey = iconMap[skillId] || 'icon_slash';
             const color = colorMap[skillId] || 0x00ffff;
 
@@ -232,20 +379,25 @@ export default class UIScene extends Phaser.Scene {
             slotBg.lineStyle(2, color, 0.8);
             slotBg.strokeRoundedRect(x, y - size/2, size, size, 6);
 
-            // 等级指示器
+            // 等级指示器 - 显示在图标内部底部
             const level = data.skill.level;
-            for (let i = 0; i < level; i++) {
-                slotBg.fillStyle(color, 0.8);
-                slotBg.fillCircle(x + 8 + i * 8, y + size/2 - 8, 3);
+            if (level > 0) {
+                const dotSize = 4;
+                const dotSpacing = 8;
+                const startXDots = x + size/2 - ((level - 1) * dotSpacing) / 2;
+                for (let i = 0; i < level; i++) {
+                    slotBg.fillStyle(color, 0.9);
+                    slotBg.fillCircle(startXDots + i * dotSpacing, y + size/2 - 6, dotSize);
+                }
             }
 
             // 技能图标
             const icon = this.add.image(x + size/2, y, iconKey);
-            icon.setDisplaySize(size - 8, size - 8);
+            icon.setDisplaySize(size - 12, size - 12);
             icon.setOrigin(0.5);
 
             // 技能名称
-            const nameText = this.add.text(x + size/2, y + size/2 + 10, nameMap[skillId] || '技能', {
+            const nameText = this.add.text(x + size/2, y + size/2 + 8, nameMap[skillId] || '技能', {
                 fontSize: '10px',
                 fontStyle: 'bold',
                 color: `#${color.toString(16).padStart(6, '0')}`,
@@ -482,6 +634,7 @@ export default class UIScene extends Phaser.Scene {
             gameScene.events.off('updateHealth', this.updateHealth, this);
             gameScene.events.off('updateExperience', this.updateExperience, this);
             gameScene.events.off('skill-changed', this.updateSkillDisplay, this);
+            gameScene.events.off('updateKillCount', this.updateKillCount, this);
         }
 
         // 清理技能图标

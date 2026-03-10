@@ -80,6 +80,93 @@ export const PASSIVE_SKILLS: Skill[] = [
             range: 300
         }
     },
+    {
+        id: 'skill_plasma_orb',
+        name: '等离子球',
+        description: '发射追踪等离子球，造成攻击力160%伤害并爆炸',
+        icon: 'icon_orb',
+        branch: SkillBranch.OFFENSE,
+        manaCost: 0,
+        cooldown: 3,
+        lastUsedTime: 0,
+        level: 0,
+        maxLevel: 5,
+        effect: {
+            type: SkillType.PLASMA_ORB,
+            damage: 1.6,
+            range: 150
+        }
+    },
+    {
+        id: 'skill_nova',
+        name: '能量新星',
+        description: '爆发能量新星，对周围敌人造成攻击力250%伤害',
+        icon: 'icon_nova',
+        branch: SkillBranch.OFFENSE,
+        manaCost: 0,
+        cooldown: 8,
+        lastUsedTime: 0,
+        level: 0,
+        maxLevel: 5,
+        effect: {
+            type: SkillType.NOVA,
+            damage: 2.5,
+            range: 180
+        }
+    },
+    {
+        id: 'skill_sonic_boom',
+        name: '音爆冲击',
+        description: '释放音波冲击，击退并伤害敌人',
+        icon: 'icon_sonic',
+        branch: SkillBranch.OFFENSE,
+        manaCost: 0,
+        cooldown: 4,
+        lastUsedTime: 0,
+        level: 0,
+        maxLevel: 5,
+        effect: {
+            type: SkillType.SONIC_BOOM,
+            damage: 1.4,
+            range: 200
+        }
+    },
+    {
+        id: 'skill_flame_wave',
+        name: '烈焰波',
+        description: '释放火焰波，造成攻击力130%伤害并持续燃烧',
+        icon: 'icon_flame',
+        branch: SkillBranch.OFFENSE,
+        manaCost: 0,
+        cooldown: 3,
+        lastUsedTime: 0,
+        level: 0,
+        maxLevel: 5,
+        effect: {
+            type: SkillType.FLAME_WAVE,
+            damage: 1.3,
+            range: 180,
+            duration: 3
+        }
+    },
+    {
+        id: 'skill_void_rift',
+        name: '虚空裂缝',
+        description: '撕裂空间，对裂缝中敌人造成持续伤害',
+        icon: 'icon_void',
+        branch: SkillBranch.OFFENSE,
+        manaCost: 0,
+        cooldown: 6,
+        lastUsedTime: 0,
+        level: 0,
+        maxLevel: 5,
+        effect: {
+            type: SkillType.VOID_RIFT,
+            damage: 0.8,
+            range: 120,
+            duration: 4
+        }
+    },
     
     // ========== 防御分支 ==========
     {
@@ -117,6 +204,59 @@ export const PASSIVE_SKILLS: Skill[] = [
             stunDuration: 2
         }
     },
+    {
+        id: 'skill_time_warp',
+        name: '时间扭曲',
+        description: '减缓周围敌人移动速度50%，持续3秒',
+        icon: 'icon_time',
+        branch: SkillBranch.DEFENSE,
+        manaCost: 0,
+        cooldown: 10,
+        lastUsedTime: 0,
+        level: 0,
+        maxLevel: 5,
+        effect: {
+            type: SkillType.TIME_WARP,
+            range: 200,
+            duration: 3
+        }
+    },
+    {
+        id: 'skill_nanite_swarm',
+        name: '纳米虫群',
+        description: '释放纳米虫群，每秒恢复5%生命值并伤害附近敌人',
+        icon: 'icon_nanite',
+        branch: SkillBranch.DEFENSE,
+        manaCost: 0,
+        cooldown: 15,
+        lastUsedTime: 0,
+        level: 0,
+        maxLevel: 5,
+        effect: {
+            type: SkillType.NANITE_SWARM,
+            healValue: 5,
+            damage: 0.3,
+            duration: 5
+        }
+    },
+    {
+        id: 'skill_energy_drain',
+        name: '能量汲取',
+        description: '汲取敌人能量，造成伤害并恢复生命值',
+        icon: 'icon_drain',
+        branch: SkillBranch.DEFENSE,
+        manaCost: 0,
+        cooldown: 5,
+        lastUsedTime: 0,
+        level: 0,
+        maxLevel: 5,
+        effect: {
+            type: SkillType.ENERGY_DRAIN,
+            damage: 1.0,
+            healValue: 15,
+            range: 150
+        }
+    },
     
     // ========== 辅助分支 ==========
     {
@@ -150,6 +290,24 @@ export const PASSIVE_SKILLS: Skill[] = [
         effect: {
             type: SkillType.HOLOGRAM,
             duration: 4
+        }
+    },
+    {
+        id: 'skill_ice_shard',
+        name: '冰霜碎片',
+        description: '发射冰霜碎片，减速敌人30%',
+        icon: 'icon_ice',
+        branch: SkillBranch.UTILITY,
+        manaCost: 0,
+        cooldown: 4,
+        lastUsedTime: 0,
+        level: 0,
+        maxLevel: 5,
+        effect: {
+            type: SkillType.ICE_SHARD,
+            damage: 1.1,
+            range: 200,
+            duration: 2
         }
     }
 ];
@@ -282,7 +440,17 @@ export function getSkillColor(skillId: string): number {
         'skill_nanobot_shield': 0x44ff44,
         'skill_emp_burst': 0x4488ff,
         'skill_overdrive': 0xff8800,
-        'skill_hologram': 0xaa44ff
+        'skill_hologram': 0xaa44ff,
+        // 新增技能颜色
+        'skill_plasma_orb': 0xff66ff,
+        'skill_nova': 0xffaa00,
+        'skill_sonic_boom': 0x00aaff,
+        'skill_flame_wave': 0xff4400,
+        'skill_void_rift': 0x8800ff,
+        'skill_time_warp': 0x00ffaa,
+        'skill_nanite_swarm': 0x88ff00,
+        'skill_energy_drain': 0xff0066,
+        'skill_ice_shard': 0x88ffff
     };
     return colors[skillId] || 0xffffff;
 }
@@ -299,7 +467,17 @@ export function getSkillIconKey(skillId: string): string {
         'skill_nanobot_shield': 'icon_shield',
         'skill_emp_burst': 'icon_emp',
         'skill_overdrive': 'icon_overdrive',
-        'skill_hologram': 'icon_hologram'
+        'skill_hologram': 'icon_hologram',
+        // 新增技能图标映射
+        'skill_plasma_orb': 'icon_orb',
+        'skill_nova': 'icon_nova',
+        'skill_sonic_boom': 'icon_sonic',
+        'skill_flame_wave': 'icon_flame',
+        'skill_void_rift': 'icon_void',
+        'skill_time_warp': 'icon_time',
+        'skill_nanite_swarm': 'icon_nanite',
+        'skill_energy_drain': 'icon_drain',
+        'skill_ice_shard': 'icon_ice'
     };
     return iconMap[skillId] || 'icon_slash';
 }

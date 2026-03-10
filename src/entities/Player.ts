@@ -4,11 +4,12 @@
  */
 
 import Phaser from 'phaser';
-import { CombatStats, CombatState, Skill } from '../core/Types';
+import { CombatStats, CombatState, Skill, Weapon } from '../core/Types';
 import { GAME_CONFIG } from '../core/Config';
 import { InventorySystem } from '../systems/InventorySystem';
 import { CombatSystem } from '../systems/CombatSystem';
 import { getSkillById, getSkillColor, SKILL_UPGRADE_DATA } from '../data/Skills';
+import { getStarterWeapon, getWeaponById, getRandomWeapon } from '../data/Weapons';
 
 export default class Player extends Phaser.GameObjects.Sprite {
     private stats!: CombatStats;
@@ -23,6 +24,12 @@ export default class Player extends Phaser.GameObjects.Sprite {
     private isDead: boolean = false;
     private invincibleTime: number = 0;
 
+    // 武器系统
+    private currentWeapon: Weapon;
+    private ownedWeapons: Weapon[] = [];
+    private weaponSlots: (Weapon | null)[] = [null, null, null]; // 最多3个武器槽位
+    private activeWeaponSlot: number = 0;
+
     // 技能系统
     private ownedSkills: Map<string, { skill: Skill; cooldownEndTime: number }> = new Map();
 
@@ -30,13 +37,19 @@ export default class Player extends Phaser.GameObjects.Sprite {
     private temporaryBoosts: Map<string, { value: number; endTime: number }> = new Map();
 
     constructor(scene: Phaser.Scene, x: number, y: number) {
-        super(scene, x, y, 'player_idle');
+        super(scene, x, y, 'player_idle_0');
 
         scene.add.existing(this);
         scene.physics.add.existing(this);
 
         // 初始化玩家属性
         this.initializeStats();
+
+        // 初始化武器系统
+        this.currentWeapon = getStarterWeapon();
+        this.ownedWeapons.push(this.currentWeapon);
+        this.weaponSlots[0] = this.currentWeapon;
+        this.applyWeaponStats();
 
         // 初始化系统
         this.inventory = new InventorySystem();
@@ -49,8 +62,17 @@ export default class Player extends Phaser.GameObjects.Sprite {
         body.setCollideWorldBounds(true);
         body.setSize(32, 32);
 
+        // 播放待机动画
+        this.play('player_idle_anim', true);
+
         // 监听技能选择事件
         scene.events.on('skillSelected', this.onSkillSelected, this);
+
+        // 监听武器切换按键
+        scene.input.keyboard!.on('keydown-ONE', () => this.switchWeapon(0), this);
+        scene.input.keyboard!.on('keydown-TWO', () => this.switchWeapon(1), this);
+        scene.input.keyboard!.on('keydown-THREE', () => this.switchWeapon(2), this);
+        scene.input.keyboard!.on('keydown-Q', () => this.switchToNextWeapon(), this);
     }
 
     /**
@@ -241,6 +263,18 @@ export default class Player extends Phaser.GameObjects.Sprite {
         } else if (velocity.x > 0) {
             this.setFlipX(false);
         }
+
+        // 动画状态切换
+        const isMoving = velocity.x !== 0 || velocity.y !== 0;
+        if (isMoving && !this.combatState.isAttacking) {
+            if (this.anims.currentAnim?.key !== 'player_run_anim') {
+                this.play('player_run_anim', true);
+            }
+        } else if (!this.combatState.isAttacking) {
+            if (this.anims.currentAnim?.key !== 'player_idle_anim') {
+                this.play('player_idle_anim', true);
+            }
+        }
     }
 
     /**
@@ -264,7 +298,17 @@ export default class Player extends Phaser.GameObjects.Sprite {
         this.combatState.lastAttackTime = time;
         this.combatState.isAttacking = true;
 
-        const attackRange = 60;
+        // 播放攻击动画
+        this.play('player_attack_anim', true);
+        
+        // 攻击动画结束后恢复
+        this.once('animationcomplete', () => {
+            this.combatState.isAttacking = false;
+            this.play('player_idle_anim', true);
+        });
+
+        // 使用武器攻击范围
+        const attackRange = this.currentWeapon ? this.currentWeapon.range : 60;
         const enemies = this.getNearbyEnemies(attackRange);
         const comboBonus = CombatSystem.calculateComboBonus(this.combatState.comboCount);
 
@@ -275,9 +319,9 @@ export default class Player extends Phaser.GameObjects.Sprite {
             this.showDamageNumber(enemy.x, enemy.y, finalDamage, damageResult.isCrit);
         }
 
+        // 攻击特效
         this.setTint(0xffffff);
-        this.scene.time.delayedCall(150, () => {
-            this.combatState.isAttacking = false;
+        this.scene.time.delayedCall(100, () => {
             this.clearTint();
         });
     }
@@ -1294,6 +1338,181 @@ export default class Player extends Phaser.GameObjects.Sprite {
      */
     public getOwnedSkills(): Map<string, { skill: Skill; cooldownEndTime: number }> {
         return this.ownedSkills;
+    }
+
+    // ========== 武器系统 ==========
+
+    /**
+     * 装备武器
+     */
+    public equipWeapon(weapon: Weapon, slotIndex?: number): void {
+        const slot = slotIndex !== undefined ? slotIndex : this.findEmptyWeaponSlot();
+        
+        if (slot === -1) {
+            // 没有空槽位，替换当前武器
+            this.weaponSlots[this.activeWeaponSlot] = weapon;
+        } else {
+            this.weaponSlots[slot] = weapon;
+        }
+
+        if (!this.ownedWeapons.find(w => w.id === weapon.id)) {
+            this.ownedWeapons.push(weapon);
+        }
+
+        // 如果是第一次装备武器，立即应用
+        if (!this.currentWeapon || slot === this.activeWeaponSlot) {
+            this.currentWeapon = weapon;
+            this.applyWeaponStats();
+        }
+
+        this.showWeaponEquipEffect(weapon);
+        this.scene.events.emit('weapon-changed');
+    }
+
+    /**
+     * 查找空武器槽
+     */
+    private findEmptyWeaponSlot(): number {
+        for (let i = 0; i < this.weaponSlots.length; i++) {
+            if (this.weaponSlots[i] === null) return i;
+        }
+        return -1;
+    }
+
+    /**
+     * 切换武器（按槽位）
+     */
+    public switchWeapon(slotIndex: number): void {
+        if (slotIndex < 0 || slotIndex >= this.weaponSlots.length) return;
+        if (!this.weaponSlots[slotIndex]) return;
+
+        this.activeWeaponSlot = slotIndex;
+        this.currentWeapon = this.weaponSlots[slotIndex]!;
+        this.applyWeaponStats();
+
+        this.showWeaponSwitchEffect();
+        this.scene.events.emit('weapon-changed');
+    }
+
+    /**
+     * 切换到下一个武器
+     */
+    public switchToNextWeapon(): void {
+        let nextSlot = (this.activeWeaponSlot + 1) % this.weaponSlots.length;
+        let attempts = 0;
+
+        while (!this.weaponSlots[nextSlot] && attempts < this.weaponSlots.length) {
+            nextSlot = (nextSlot + 1) % this.weaponSlots.length;
+            attempts++;
+        }
+
+        if (this.weaponSlots[nextSlot]) {
+            this.switchWeapon(nextSlot);
+        }
+    }
+
+    /**
+     * 应用武器属性
+     */
+    private applyWeaponStats(): void {
+        if (!this.currentWeapon) return;
+
+        // 基础属性 + 武器属性
+        this.stats.attack = GAME_CONFIG.player.baseAttack + this.currentWeapon.attack;
+        this.stats.attackSpeed = this.currentWeapon.attackSpeed;
+        this.stats.critRate = GAME_CONFIG.player.baseCritRate + this.currentWeapon.critRate;
+        this.stats.critDamage = GAME_CONFIG.player.baseCritDamage + this.currentWeapon.critDamage;
+    }
+
+    /**
+     * 获取当前武器
+     */
+    public getCurrentWeapon(): Weapon {
+        return this.currentWeapon;
+    }
+
+    /**
+     * 获取所有武器槽位
+     */
+    public getWeaponSlots(): (Weapon | null)[] {
+        return this.weaponSlots;
+    }
+
+    /**
+     * 获取已拥有武器列表
+     */
+    public getOwnedWeapons(): Weapon[] {
+        return this.ownedWeapons;
+    }
+
+    /**
+     * 显示武器装备特效
+     */
+    private showWeaponEquipEffect(weapon: Weapon): void {
+        const rarityColors: Record<string, number> = {
+            'common': 0x888888,
+            'rare': 0x4488ff,
+            'epic': 0xaa44ff,
+            'legendary': 0xffaa00
+        };
+
+        const color = rarityColors[weapon.rarity] || 0xffffff;
+        
+        const text = this.scene.add.text(this.x, this.y - 50, `装备: ${weapon.name}`, {
+            fontSize: '20px',
+            fontStyle: 'bold',
+            color: `#${color.toString(16).padStart(6, '0')}`,
+            fontFamily: 'Courier New, monospace',
+            stroke: '#000000',
+            strokeThickness: 2
+        });
+        text.setOrigin(0.5);
+        text.setDepth(200);
+
+        this.scene.tweens.add({
+            targets: text,
+            y: this.y - 90,
+            alpha: 0,
+            duration: 2000,
+            onComplete: () => text.destroy()
+        });
+
+        // 武器光环
+        const ring = this.scene.add.graphics();
+        ring.lineStyle(3, color, 0.8);
+        ring.strokeCircle(this.x, this.y, 30);
+
+        this.scene.tweens.add({
+            targets: ring,
+            scale: 2,
+            alpha: 0,
+            duration: 600,
+            onComplete: () => ring.destroy()
+        });
+    }
+
+    /**
+     * 显示武器切换特效
+     */
+    private showWeaponSwitchEffect(): void {
+        const flash = this.scene.add.graphics();
+        flash.fillStyle(0xffffff, 0.3);
+        flash.fillRect(this.x - 20, this.y - 20, 40, 40);
+
+        this.scene.tweens.add({
+            targets: flash,
+            alpha: 0,
+            duration: 200,
+            onComplete: () => flash.destroy()
+        });
+    }
+
+    /**
+     * 随机获得武器（用于掉落）
+     */
+    public grantRandomWeapon(): void {
+        const weapon = getRandomWeapon();
+        this.equipWeapon(weapon);
     }
 
     /**

@@ -61,6 +61,11 @@ export default class GameScene extends Phaser.Scene {
 
         // 监听敌人被击败事件
         this.events.on('enemyDefeated', this.onEnemyDefeated, this);
+
+        // 添加键盘监听 - 打开合成界面
+        this.input.keyboard!.on('keydown-C', () => {
+            this.openCraftingScene();
+        }, this);
     }
 
     /**
@@ -450,40 +455,27 @@ export default class GameScene extends Phaser.Scene {
     }
 
     /**
-     * 从世界边界外生成敌人
+     * 从世界边界外生成敌人 - 改进为在玩家周围生成，增加割草感
      */
     private spawnEnemyFromEdge(type: EnemyType): void {
         if (this.isGameOver) return;
 
-        const worldWidth = GAME_CONFIG.worldWidth;
-        const worldHeight = GAME_CONFIG.worldHeight;
-        const margin = 50;
-
-        let x: number, y: number;
-
-        const edge = Phaser.Math.Between(0, 3);
-
-        switch (edge) {
-            case 0:
-                x = Phaser.Math.Between(50, worldWidth - 50);
-                y = -margin;
-                break;
-            case 1:
-                x = Phaser.Math.Between(50, worldWidth - 50);
-                y = worldHeight + margin;
-                break;
-            case 2:
-                x = -margin;
-                y = Phaser.Math.Between(50, worldHeight - 50);
-                break;
-            case 3:
-                x = worldWidth + margin;
-                y = Phaser.Math.Between(50, worldHeight - 50);
-                break;
-            default:
-                x = -margin;
-                y = worldHeight / 2;
-        }
+        // 在玩家周围生成敌人，距离玩家 400-800 像素的环形区域
+        const playerX = this.player.x;
+        const playerY = this.player.y;
+        const minDistance = 400;
+        const maxDistance = 800;
+        
+        // 随机角度
+        const angle = Math.random() * Math.PI * 2;
+        const distance = minDistance + Math.random() * (maxDistance - minDistance);
+        
+        let x = playerX + Math.cos(angle) * distance;
+        let y = playerY + Math.sin(angle) * distance;
+        
+        // 确保在世界边界内
+        x = Phaser.Math.Clamp(x, 50, GAME_CONFIG.worldWidth - 50);
+        y = Phaser.Math.Clamp(y, 50, GAME_CONFIG.worldHeight - 50);
 
         const enemy = new Enemy(this, x, y, type);
         this.enemies.push(enemy);
@@ -491,7 +483,10 @@ export default class GameScene extends Phaser.Scene {
 
         this.physics.add.collider(this.player, enemy, this.handlePlayerEnemyCollision, undefined, this);
         
-        for (const otherEnemy of this.enemies) {
+        // 限制敌人之间的碰撞检测数量，提高性能
+        const maxColliders = 10;
+        const nearbyEnemies = this.enemies.slice(-maxColliders);
+        for (const otherEnemy of nearbyEnemies) {
             if (otherEnemy !== enemy) {
                 this.physics.add.collider(enemy, otherEnemy);
             }
@@ -687,6 +682,25 @@ export default class GameScene extends Phaser.Scene {
     }
 
     /**
+     * 打开合成界面
+     */
+    private openCraftingScene(): void {
+        if (this.isGameOver) return;
+        
+        // 暂停游戏场景
+        this.physics.pause();
+        
+        // 启动合成场景
+        this.scene.launch('CraftingScene', { 
+            player: this.player,
+            onClose: () => {
+                // 关闭合成场景后恢复游戏
+                this.physics.resume();
+            }
+        });
+    }
+
+    /**
      * 更新场景
      */
     update(time: number, delta: number): void {
@@ -701,5 +715,35 @@ export default class GameScene extends Phaser.Scene {
         }
 
         this.timeElapsed += delta / 1000;
+        
+        // 性能优化：定期清理远离玩家的敌人和道具
+        this.cleanupDistantEntities();
+    }
+    
+    /**
+     * 清理远离玩家的实体 - 性能优化
+     */
+    private cleanupDistantEntities(): void {
+        const maxDistance = 1200; // 超过这个距离的敌人会被清理
+        const playerX = this.player.x;
+        const playerY = this.player.y;
+        
+        // 清理远离的敌人
+        for (let i = this.enemies.length - 1; i >= 0; i--) {
+            const enemy = this.enemies[i];
+            const distance = Phaser.Math.Distance.Between(
+                playerX, playerY, enemy.x, enemy.y
+            );
+            if (distance > maxDistance && this.enemies.length > 20) {
+                enemy.destroy();
+                this.enemies.splice(i, 1);
+            }
+        }
+        
+        // 清理过多的道具
+        while (this.powerUps.length > 30) {
+            const oldestPowerUp = this.powerUps.shift();
+            if (oldestPowerUp) oldestPowerUp.destroy();
+        }
     }
 }

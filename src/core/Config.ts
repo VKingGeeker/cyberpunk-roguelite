@@ -35,11 +35,12 @@ export const GAME_CONFIG = {
         duration: 600, // 10分钟（秒）
         width: 100,     // 地图宽度（瓦片数）
         height: 75,    // 地图高度（瓦片数）
-        enemyCount: 10,
-        eliteCount: 1,
-        enemyRespawnTime: 10, // 敌人重生时间（秒）
-        enemySpawnInterval: 3000, // 敌人生成间隔（毫秒）
-        maxEnemies: 20 // 最大敌人数量
+        enemyCount: 30,    // 初始敌人数量（增加）
+        eliteCount: 3,     // 初始精英数量（增加）
+        enemyRespawnTime: 5, // 敌人重生时间（秒）
+        enemySpawnInterval: 800, // 敌人生成间隔（毫秒）- 加快生成
+        maxEnemies: 80, // 最大敌人数量（大幅增加）
+        bossSpawnTime: 120 // Boss生成时间（秒）
     },
 
     // 合成配置
@@ -128,7 +129,17 @@ export enum SkillType {
     LASER_BEAM = 'laser_beam',
     EMP_BURST = 'emp_burst',
     OVERDRIVE = 'overdrive',
-    HOLOGRAM = 'hologram'
+    HOLOGRAM = 'hologram',
+    // 新增技能类型
+    PLASMA_ORB = 'plasma_orb',
+    NOVA = 'nova',
+    TIME_WARP = 'time_warp',
+    NANITE_SWARM = 'nanite_swarm',
+    SONIC_BOOM = 'sonic_boom',
+    FLAME_WAVE = 'flame_wave',
+    ICE_SHARD = 'ice_shard',
+    VOID_RIFT = 'void_rift',
+    ENERGY_DRAIN = 'energy_drain'
 }
 
 /**

@@ -163,6 +163,31 @@ export interface CraftingState {
     progress: number;        // 合成进度（0-1）
 }
 
+// ============ 武器系统类型 ============
+
+/**
+ * 武器类型
+ */
+export type WeaponType = 'sword' | 'blade' | 'staff' | 'hammer' | 'dagger';
+
+/**
+ * 武器数据
+ */
+export interface Weapon {
+    id: string;              // 武器ID
+    name: string;            // 武器名称
+    type: WeaponType;        // 武器类型
+    rarity: ItemRarity;      // 武器稀有度
+    attack: number;          // 基础攻击力
+    attackSpeed: number;     // 攻击速度
+    critRate: number;        // 暴击率
+    critDamage: number;      // 暴击伤害
+    range: number;           // 攻击范围
+    specialEffect?: string;  // 特殊效果描述
+    icon: string;            // 图标资源路径
+    description: string;     // 描述
+}
+
 // ============ 关卡系统类型 ============
 
 /**
