@@ -54,8 +54,10 @@ export default class Player extends Phaser.GameObjects.Sprite {
         // 初始化系统
         this.inventory = new InventorySystem();
 
-        // 初始技能（1级时获得第一个技能）
-        this.grantRandomSkill();
+        // 初始技能延迟到下一帧获取，确保 UI 场景已准备好
+        scene.time.delayedCall(100, () => {
+            this.grantRandomSkill();
+        });
 
         // 添加刚体
         const body = this.body as Phaser.Physics.Arcade.Body;

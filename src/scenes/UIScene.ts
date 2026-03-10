@@ -288,14 +288,18 @@ export default class UIScene extends Phaser.Scene {
      */
     public updateSkillDisplay(): void {
         if (!this.player) return;
-
+        
         const ownedSkills = this.player.getOwnedSkills();
+        if (!ownedSkills || ownedSkills.size === 0) return;
+
         const startX = 20;
         const y = this.cameras.main.height - 130;
         const size = GAME_CONFIG.ui.skillIconSize;
 
         // 清除旧图标
-        this.skillIcons.forEach(icon => icon.destroy());
+        if (this.skillIcons && this.skillIcons.length > 0) {
+            this.skillIcons.forEach(icon => icon.destroy());
+        }
         this.skillIcons = [];
 
         // 技能名称到图标键的映射
