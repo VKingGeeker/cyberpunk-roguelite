@@ -421,6 +421,8 @@ export default class GameScene extends Phaser.Scene {
 
         // 添加与玩家的碰撞检测
         this.physics.add.overlap(this.player, powerUp, () => {
+            // 检查 powerUp 是否仍然有效（未被销毁）
+            if (!powerUp || !powerUp.scene || !powerUp.active) return;
             this.collectPowerUp(powerUp);
         });
     }
@@ -1021,6 +1023,9 @@ export default class GameScene extends Phaser.Scene {
         
         // 设置与玩家的碰撞检测
         this.physics.add.overlap(this.player, fragment, () => {
+            // 检查 fragment 是否仍然有效（未被销毁）
+            if (!fragment || !fragment.scene || !fragment.active) return;
+            
             if (!fragment.isCollected()) {
                 fragment.collect();
                 this.timeRewindSystem.addTimeFragments(fragment.getValue());
