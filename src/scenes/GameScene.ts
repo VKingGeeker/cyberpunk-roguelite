@@ -418,22 +418,42 @@ export default class GameScene extends Phaser.Scene {
     private spawnPowerUp(x: number, y: number, type: PowerUpType, rarity: PowerUpRarity): void {
         const powerUp = new PowerUp(this, x, y, type, rarity);
         this.powerUps.push(powerUp);
+        
+        // 使用闭包变量防止重复触发
+        let isCollected = false;
 
         // 添加与玩家的碰撞检测
         this.physics.add.overlap(this.player, powerUp, () => {
-            try {
-                // 检查 powerUp 是否仍然有效（未被销毁）
-                if (!powerUp || !powerUp.scene || !powerUp.active) return;
-                this.collectPowerUp(powerUp);
-            } catch (e) {
-                // 忽略碰撞处理中的错误
-                console.warn('[GameScene] PowerUp collision error:', e);
+            // 防止重复触发
+            if (isCollected) return;
+            isCollected = true;
+            
+            // 立即禁用物理体
+            const body = powerUp.body as Phaser.Physics.Arcade.Body;
+            if (body) body.enable = false;
+            
+            // 应用效果
+            powerUp.applyTo(this.player);
+
+            // 从列表中移除
+            const index = this.powerUps.indexOf(powerUp);
+            if (index > -1) {
+                this.powerUps.splice(index, 1);
             }
+
+            // 简单的收集动画
+            this.tweens.add({
+                targets: powerUp,
+                scale: 0,
+                alpha: 0,
+                duration: 200,
+                onComplete: () => powerUp.destroy()
+            });
         });
     }
 
     /**
-     * 收集道具
+     * 收集道具（保留用于其他地方调用）
      */
     private collectPowerUp(powerUp: PowerUp): void {
         // 应用效果
@@ -1026,21 +1046,60 @@ export default class GameScene extends Phaser.Scene {
         const fragment = new TimeFragment(this, x, y, TIME_REWIND_CONFIG.fragmentDropAmount);
         this.timeFragments.push(fragment);
         
+        // 保存 fragment 的值和引用
+        const fragmentValue = fragment.getValue();
+        let isCollected = false;
+        
         // 设置与玩家的碰撞检测
         this.physics.add.overlap(this.player, fragment, () => {
-            try {
-                // 检查 fragment 是否仍然有效（未被销毁）
-                if (!fragment || !fragment.scene || !fragment.active) return;
-                
-                if (!fragment.isCollected()) {
-                    fragment.collect();
-                    this.timeRewindSystem.addTimeFragments(fragment.getValue());
-                    this.timeFragments = this.timeFragments.filter(f => f !== fragment);
-                }
-            } catch (e) {
-                // 忽略碰撞处理中的错误
-                console.warn('[GameScene] TimeFragment collision error:', e);
+            // 使用闭包变量防止重复触发
+            if (isCollected) return;
+            isCollected = true;
+            
+            // 立即禁用物理体
+            const body = fragment.body as Phaser.Physics.Arcade.Body;
+            if (body) body.enable = false;
+            
+            // 添加碎片
+            this.timeRewindSystem.addTimeFragments(fragmentValue);
+            
+            // 从列表中移除
+            const index = this.timeFragments.indexOf(fragment);
+            if (index > -1) {
+                this.timeFragments.splice(index, 1);
             }
+            
+            // 延迟一帧后处理视觉效果，确保物理引擎完成当前帧
+            this.time.delayedCall(1, () => {
+                if (!fragment.scene) return;
+                
+                // 显示收集提示
+                const text = this.add.text(fragment.x, fragment.y - 20, `+${fragmentValue} 时空碎片`, {
+                    fontSize: '16px',
+                    color: '#00ffff',
+                    fontFamily: 'Courier New, monospace',
+                    fontStyle: 'bold',
+                    stroke: '#000000',
+                    strokeThickness: 2
+                }).setOrigin(0.5).setDepth(200);
+                
+                this.tweens.add({
+                    targets: text,
+                    y: text.y - 40,
+                    alpha: 0,
+                    duration: 1000,
+                    onComplete: () => text.destroy()
+                });
+                
+                // 简单的收集动画
+                this.tweens.add({
+                    targets: fragment,
+                    scale: 0,
+                    alpha: 0,
+                    duration: 200,
+                    onComplete: () => fragment.destroy()
+                });
+            });
         });
     }
 
