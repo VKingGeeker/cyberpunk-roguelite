@@ -10,6 +10,7 @@ import PowerUp, { PowerUpType, PowerUpRarity } from '../entities/PowerUp';
 import { GAME_CONFIG } from '../core/Config';
 import { EnemyType } from '../core/Types';
 import { getEnemyTemplate, rollLoot } from '../data/Enemies';
+import { TutorialSystem } from '../systems/TutorialSystem';
 
 export default class GameScene extends Phaser.Scene {
     private player!: Player;
@@ -20,6 +21,7 @@ export default class GameScene extends Phaser.Scene {
     private spawnTimer!: Phaser.Time.TimerEvent;
     private powerUpTimer!: Phaser.Time.TimerEvent;
     private isGameOver: boolean = false;
+    private tutorialSystem!: TutorialSystem;
 
     constructor() {
         super({ key: 'GameScene', active: false });
@@ -66,6 +68,33 @@ export default class GameScene extends Phaser.Scene {
         this.input.keyboard!.on('keydown-C', () => {
             this.openCraftingScene();
         }, this);
+
+        // 添加键盘监听 - 存档功能
+        this.input.keyboard!.on('keydown-F5', () => {
+            this.quickSave();
+        }, this);
+
+        this.input.keyboard!.on('keydown-F9', () => {
+            this.quickLoad();
+        }, this);
+
+        this.input.keyboard!.on('keydown-S', (event: KeyboardEvent) => {
+            if (event.ctrlKey) {
+                this.openSaveScene('save');
+            }
+        }, this);
+
+        this.input.keyboard!.on('keydown-L', (event: KeyboardEvent) => {
+            if (event.ctrlKey) {
+                this.openSaveScene('load');
+            }
+        }, this);
+
+        // 初始化游戏时间
+        this.data.set('gameTime', 0);
+
+        // 初始化教程系统
+        this.initTutorial();
     }
 
     /**
@@ -745,5 +774,147 @@ export default class GameScene extends Phaser.Scene {
             const oldestPowerUp = this.powerUps.shift();
             if (oldestPowerUp) oldestPowerUp.destroy();
         }
+    }
+
+    // ========== 存档系统相关方法 ==========
+
+    /**
+     * 快速保存（自动存档槽位）
+     */
+    private quickSave(): void {
+        if (this.isGameOver) return;
+
+        const playerStats = this.player.getStats();
+        const saveData = {
+            version: '1.0.0',
+            timestamp: Date.now(),
+            player: this.player.getSaveData(),
+            stats: {
+                attack: playerStats.attack,
+                defense: playerStats.defense,
+                attackSpeed: playerStats.attackSpeed,
+                critRate: playerStats.critRate,
+                critDamage: playerStats.critDamage,
+                moveSpeed: playerStats.moveSpeed
+            },
+            gameTime: this.data.get('gameTime') || 0
+        };
+
+        // 导入SaveSystem
+        import('../systems/SaveSystem').then(({ SaveSystem }) => {
+            SaveSystem.autoSave(saveData as any);
+            
+            // 显示保存成功提示
+            this.showSaveMessage('游戏已保存', '#00ff00');
+        });
+    }
+
+    /**
+     * 快速加载
+     */
+    private quickLoad(): void {
+        import('../systems/SaveSystem').then(({ SaveSystem }) => {
+            const data = SaveSystem.loadAutoSave();
+            
+            if (!data) {
+                this.showSaveMessage('没有找到存档', '#ff0000');
+                return;
+            }
+
+            // 应用存档数据
+            this.player.loadSaveData(data);
+            this.data.set('gameTime', data.gameTime || 0);
+            
+            // 清理现有敌人和道具
+            this.enemies.forEach(e => e.destroy());
+            this.enemies = [];
+            this.powerUps.forEach(p => p.destroy());
+            this.powerUps = [];
+            
+            // 重新生成敌人
+            this.spawnInitialEnemies();
+            
+            this.showSaveMessage('游戏已加载', '#00ffff');
+        });
+    }
+
+    /**
+     * 打开存档界面
+     */
+    private openSaveScene(mode: 'save' | 'load'): void {
+        if (this.isGameOver) return;
+
+        this.physics.pause();
+        
+        this.scene.launch('SaveScene', { 
+            player: this.player,
+            mode: mode
+        });
+    }
+
+    /**
+     * 显示存档消息
+     */
+    private showSaveMessage(text: string, color: string): void {
+        const msg = this.add.text(this.cameras.main.scrollX + 640, 
+            this.cameras.main.scrollY + 100, text, {
+            fontSize: '24px',
+            color: color,
+            fontFamily: 'Courier New, monospace',
+            backgroundColor: '#000000',
+            padding: { x: 20, y: 10 }
+        }).setOrigin(0.5).setDepth(2000);
+
+        this.tweens.add({
+            targets: msg,
+            alpha: 0,
+            y: msg.y - 50,
+            duration: 2000,
+            onComplete: () => msg.destroy()
+        });
+    }
+
+    // ========== 教程系统相关方法 ==========
+
+    /**
+     * 初始化教程系统
+     */
+    private initTutorial(): void {
+        this.tutorialSystem = new TutorialSystem(this);
+        
+        // 监听教程动作事件
+        this.events.on('tutorial-action', (action: string) => {
+            if (this.tutorialSystem) {
+                this.tutorialSystem.notifyAction(action);
+            }
+        });
+        
+        // 延迟启动教程，确保场景完全加载
+        this.time.delayedCall(1000, () => {
+            this.tutorialSystem.start(
+                (step, total) => {
+                    console.log(`[Tutorial] 步骤 ${step + 1}/${total}`);
+                },
+                () => {
+                    console.log('[Tutorial] 教程完成');
+                }
+            );
+        });
+    }
+
+    /**
+     * 通知教程系统动作完成
+     */
+    public notifyTutorialAction(action: string): void {
+        if (this.tutorialSystem) {
+            this.tutorialSystem.notifyAction(action);
+        }
+    }
+
+    /**
+     * 检查教程是否激活
+     */
+    public isTutorialActive(): boolean {
+        return this.tutorialSystem?.isTutorialActive() || false;
     }
 }

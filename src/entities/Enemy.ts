@@ -13,10 +13,19 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
     private stats!: CombatStats;
     private combatState!: CombatState;
     private enemyType: EnemyType;
-    private aiState: 'idle' | 'chase' | 'attack' | 'stunned' = 'idle';
+    private aiState: 'idle' | 'patrol' | 'chase' | 'attack' | 'retreat' | 'stunned' = 'idle';
     private target: Phaser.GameObjects.Sprite | null = null;
     private chaseRange: number = 800; // 追踪范围
     private attackRange: number = 60; // 攻击范围
+    private attackCooldown: number = 1000; // 攻击冷却（毫秒）
+    private lastAttackTime: number = 0; // 上次攻击时间
+    private patrolTarget: Phaser.Math.Vector2 | null = null; // 巡逻目标点
+    private patrolWaitTime: number = 0; // 巡逻等待时间
+    private retreatCooldown: number = 0; // 撤退冷却
+    private predictionFactor: number = 0.3; // 预测因子（0-1）
+    private separationDistance: number = 40; // 敌人间隔距离
+    private attackWindupTime: number = 200; // 攻击前摇时间
+    private isWindup: boolean = false; // 是否在攻击前摇中
 
     constructor(scene: Phaser.Scene, x: number, y: number, enemyType: EnemyType) {
         // 使用临时占位图，实际开发中替换为资源图
@@ -156,15 +165,26 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
      * 更新AI行为
      */
     private updateAI(time: number, delta: number): void {
+        // 更新冷却
+        if (this.retreatCooldown > 0) {
+            this.retreatCooldown -= delta;
+        }
+
         switch (this.aiState) {
             case 'idle':
-                this.idle();
+                this.idle(time, delta);
+                break;
+            case 'patrol':
+                this.patrol(time, delta);
                 break;
             case 'chase':
-                this.chase(delta);
+                this.chase(time, delta);
                 break;
             case 'attack':
                 this.attack(time, delta);
+                break;
+            case 'retreat':
+                this.retreat(delta);
                 break;
             case 'stunned':
                 // 眩晕状态下不移动
@@ -177,20 +197,91 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
     /**
      * 空闲状态
      */
-    private idle(): void {
+    private idle(time: number, delta: number): void {
         const body = this.body as Phaser.Physics.Arcade.Body;
         body.setVelocity(0, 0);
 
-        // 如果有目标，切换到追踪状态
+        // 如果有目标，检查距离
         if (this.target) {
-            this.aiState = 'chase';
+            const distance = Phaser.Math.Distance.Between(
+                this.x, this.y,
+                this.target.x, this.target.y
+            );
+            
+            // 如果目标在追踪范围内，切换到追踪状态
+            if (distance < this.chaseRange) {
+                this.aiState = 'chase';
+                return;
+            }
+        }
+
+        // 随机进入巡逻状态
+        this.patrolWaitTime -= delta;
+        if (this.patrolWaitTime <= 0) {
+            this.aiState = 'patrol';
+            this.patrolTarget = new Phaser.Math.Vector2(
+                this.x + Phaser.Math.Between(-200, 200),
+                this.y + Phaser.Math.Between(-200, 200)
+            );
+            // 确保巡逻点在世界范围内
+            this.patrolTarget.x = Phaser.Math.Clamp(this.patrolTarget.x, 100, GAME_CONFIG.worldWidth - 100);
+            this.patrolTarget.y = Phaser.Math.Clamp(this.patrolTarget.y, 100, GAME_CONFIG.worldHeight - 100);
         }
     }
 
     /**
-     * 追击行为
+     * 巡逻行为
      */
-    private chase(delta: number): void {
+    private patrol(time: number, delta: number): void {
+        // 如果有目标，检查是否需要追踪
+        if (this.target) {
+            const distance = Phaser.Math.Distance.Between(
+                this.x, this.y,
+                this.target.x, this.target.y
+            );
+            
+            if (distance < this.chaseRange) {
+                this.aiState = 'chase';
+                return;
+            }
+        }
+
+        // 向巡逻点移动
+        if (this.patrolTarget) {
+            const distance = Phaser.Math.Distance.Between(
+                this.x, this.y,
+                this.patrolTarget.x, this.patrolTarget.y
+            );
+
+            if (distance < 20) {
+                // 到达巡逻点，返回空闲状态
+                this.aiState = 'idle';
+                this.patrolWaitTime = Phaser.Math.Between(2000, 5000);
+                this.patrolTarget = null;
+                return;
+            }
+
+            // 移动向巡逻点
+            const direction = new Phaser.Math.Vector2(
+                this.patrolTarget.x - this.x,
+                this.patrolTarget.y - this.y
+            );
+            direction.normalize();
+
+            const body = this.body as Phaser.Physics.Arcade.Body;
+            body.setVelocity(
+                direction.x * this.stats.moveSpeed * 0.5, // 巡逻时移动速度减半
+                direction.y * this.stats.moveSpeed * 0.5
+            );
+        } else {
+            this.aiState = 'idle';
+        }
+    }
+
+    /**
+     * 追击行为 - 增强版
+     */
+    private chase(time: number, delta: number): void {
         if (!this.target) {
             this.aiState = 'idle';
             return;
@@ -207,12 +298,27 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
             return;
         }
 
-        // 持续追踪目标，不设置追踪范围限制
-        // 移动向目标
+        // 预测玩家移动位置
+        let targetX = this.target.x;
+        let targetY = this.target.y;
+
+        // 如果目标有速度，预测其未来位置
+        if ((this.target as any).body) {
+            const targetBody = (this.target as any).body as Phaser.Physics.Arcade.Body;
+            targetX += targetBody.velocity.x * this.predictionFactor;
+            targetY += targetBody.velocity.y * this.predictionFactor;
+        }
+
+        // 计算移动方向
         const direction = new Phaser.Math.Vector2(
-            this.target.x - this.x,
-            this.target.y - this.y
+            targetX - this.x,
+            targetY - this.y
         );
+        direction.normalize();
+
+        // 添加分离行为，避免敌人重叠
+        const separation = this.calculateSeparation();
+        direction.add(separation);
         direction.normalize();
 
         const body = this.body as Phaser.Physics.Arcade.Body;
@@ -227,10 +333,66 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
         } else {
             this.setFlipX(false);
         }
+
+        // 如果距离太远，可能丢失目标
+        if (distance > this.chaseRange * 1.5 && !this.isTargetInSight()) {
+            this.aiState = 'idle';
+            this.patrolWaitTime = 3000;
+        }
     }
 
     /**
-     * 攻击行为
+     * 计算分离向量 - 避免敌人重叠
+     */
+    private calculateSeparation(): Phaser.Math.Vector2 {
+        const separation = new Phaser.Math.Vector2(0, 0);
+        let neighborCount = 0;
+
+        // 获取场景中所有敌人
+        const enemies = (this.scene as any).enemies as Enemy[];
+        if (!enemies) return separation;
+
+        for (const other of enemies) {
+            if (other === this || !other.active) continue;
+
+            const distance = Phaser.Math.Distance.Between(
+                this.x, this.y,
+                other.x, other.y
+            );
+
+            if (distance < this.separationDistance && distance > 0) {
+                // 计算远离方向
+                const away = new Phaser.Math.Vector2(
+                    this.x - other.x,
+                    this.y - other.y
+                );
+                away.normalize();
+                away.scale(1 - distance / this.separationDistance); // 距离越近，推力越大
+                separation.add(away);
+                neighborCount++;
+            }
+        }
+
+        if (neighborCount > 0) {
+            separation.scale(1 / neighborCount);
+        }
+
+        return separation;
+    }
+
+    /**
+     * 检查目标是否在视野内
+     */
+    private isTargetInSight(): boolean {
+        if (!this.target) return false;
+        
+        // 可以添加更复杂的视野检测，如射线检测
+        // MVP阶段简单返回true
+        return true;
+    }
+
+    /**
+     * 攻击行为 - 增强版
      */
     private attack(time: number, delta: number): void {
         if (!this.target) {
@@ -246,6 +408,7 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
         // 检查是否超出攻击范围
         if (distance > this.attackRange * 1.5) {
             this.aiState = 'chase';
+            this.isWindup = false;
             return;
         }
 
@@ -253,13 +416,69 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
         const body = this.body as Phaser.Physics.Arcade.Body;
         body.setVelocity(0, 0);
 
+        // 面向目标
+        if (this.target.x < this.x) {
+            this.setFlipX(true);
+        } else {
+            this.setFlipX(false);
+        }
+
         // 检查攻击冷却
         if (!CombatSystem.canAttack(this.combatState.lastAttackTime, this.stats.attackSpeed, time)) {
             return;
         }
 
-        // 执行攻击
-        this.performAttack(time);
+        // 攻击前摇
+        if (!this.isWindup) {
+            this.isWindup = true;
+            this.showWindupEffect();
+            
+            this.scene.time.delayedCall(this.attackWindupTime, () => {
+                if (this.aiState === 'attack' && this.active) {
+                    this.performAttack(time);
+                }
+                this.isWindup = false;
+            });
+        }
+    }
+
+    /**
+     * 显示攻击前摇特效
+     */
+    private showWindupEffect(): void {
+        // 显示攻击蓄力特效
+        const windup = this.scene.add.circle(this.x, this.y, 5, 0xff0000, 0.5);
+        
+        this.scene.tweens.add({
+            targets: windup,
+            scale: 3,
+            alpha: 0,
+            duration: this.attackWindupTime,
+            onComplete: () => windup.destroy()
+        });
+    }
+
+    /**
+     * 撤退行为 - 攻击后短暂后退
+     */
+    private retreat(delta: number): void {
+        if (!this.target || this.retreatCooldown <= 0) {
+            this.aiState = 'chase';
+            return;
+        }
+
+        // 向远离目标的方向移动
+        const direction = new Phaser.Math.Vector2(
+            this.x - this.target.x,
+            this.y - this.target.y
+        );
+        direction.normalize();
+
+        const body = this.body as Phaser.Physics.Arcade.Body;
+        body.setVelocity(
+            direction.x * this.stats.moveSpeed * 0.5,
+            direction.y * this.stats.moveSpeed * 0.5
+        );
     }
 
     /**
@@ -289,8 +508,16 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
 
         // 攻击动画结束后恢复
         this.scene.time.delayedCall(300, () => {
-            this.combatState.isAttacking = false;
-            this.setupEnemyAppearance(); // 恢复原有颜色
+            if (this.active) {
+                this.combatState.isAttacking = false;
+                this.setupEnemyAppearance(); // 恢复原有颜色
+                
+                // 攻击后进入短暂撤退状态（给玩家喘息空间）
+                if (Math.random() < 0.3) { // 30%概率撤退
+                    this.aiState = 'retreat';
+                    this.retreatCooldown = 500; // 撤退500ms
+                }
+            }
         });
     }
 

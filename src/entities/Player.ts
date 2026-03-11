@@ -36,6 +36,10 @@ export default class Player extends Phaser.GameObjects.Sprite {
     // 临时属性提升
     private temporaryBoosts: Map<string, { value: number; endTime: number }> = new Map();
 
+    // 教程追踪
+    private tutorialMoveNotified: boolean = false;
+    private tutorialAttackNotified: boolean = false;
+
     constructor(scene: Phaser.Scene, x: number, y: number) {
         super(scene, x, y, 'player_idle_0');
 
@@ -268,6 +272,13 @@ export default class Player extends Phaser.GameObjects.Sprite {
 
         // 动画状态切换
         const isMoving = velocity.x !== 0 || velocity.y !== 0;
+        
+        // 通知教程系统玩家移动
+        if (isMoving && !this.tutorialMoveNotified) {
+            this.tutorialMoveNotified = true;
+            this.scene.events.emit('tutorial-action', 'WASD');
+        }
+        
         if (isMoving && !this.combatState.isAttacking) {
             if (this.anims.currentAnim?.key !== 'player_run_anim') {
                 this.play('player_run_anim', true);
@@ -299,6 +310,12 @@ export default class Player extends Phaser.GameObjects.Sprite {
     private performAttack(time: number): void {
         this.combatState.lastAttackTime = time;
         this.combatState.isAttacking = true;
+        
+        // 通知教程系统玩家攻击
+        if (!this.tutorialAttackNotified) {
+            this.tutorialAttackNotified = true;
+            this.scene.events.emit('tutorial-action', 'attack');
+        }
 
         // 播放攻击动画
         this.play('player_attack_anim', true);
@@ -1526,5 +1543,99 @@ export default class Player extends Phaser.GameObjects.Sprite {
         
         // 清理临时提升定时器
         this.temporaryBoosts.clear();
+    }
+
+    // ========== 存档系统相关方法 ==========
+
+    /**
+     * 获取存档数据
+     */
+    public getSaveData(): any {
+        const skillsData: [string, { level: number; cooldownEndTime: number }][] = [];
+        this.ownedSkills.forEach((data, skillId) => {
+            skillsData.push([skillId, {
+                level: data.skill.level,
+                cooldownEndTime: data.cooldownEndTime
+            }]);
+        });
+
+        return {
+            x: this.x,
+            y: this.y,
+            hp: this.stats.hp,
+            maxHp: this.stats.maxHp,
+            level: this.level,
+            experience: this.experience,
+            killCount: this.killCount,
+            ownedSkills: skillsData,
+            weaponSlots: this.weaponSlots.map(w => w ? w.id : null),
+            activeWeaponSlot: this.activeWeaponSlot
+        };
+    }
+
+    /**
+     * 加载存档数据
+     */
+    public loadSaveData(data: any): void {
+        // 恢复位置
+        this.setPosition(data.player.x, data.player.y);
+
+        // 恢复属性
+        this.stats.hp = data.player.hp;
+        this.stats.maxHp = data.player.maxHp;
+        this.level = data.player.level;
+        this.experience = data.player.experience;
+        this.killCount = data.player.killCount;
+
+        // 恢复技能
+        this.ownedSkills.clear();
+        const skillsData = data.player.ownedSkills as [string, { level: number; cooldownEndTime: number }][];
+        skillsData.forEach(([skillId, skillData]) => {
+            const skillTemplate = getSkillById(skillId);
+            if (skillTemplate) {
+                const skill: Skill = { 
+                    ...skillTemplate, 
+                    level: skillData.level, 
+                    lastUsedTime: 0 
+                };
+                this.ownedSkills.set(skillId, { skill, cooldownEndTime: 0 });
+            }
+        });
+
+        // 恢复武器
+        this.weaponSlots = [null, null, null];
+        data.player.weaponSlots.forEach((weaponId: string | null, index: number) => {
+            if (weaponId) {
+                const weapon = getWeaponById(weaponId);
+                if (weapon) {
+                    this.weaponSlots[index] = weapon;
+                }
+            }
+        });
+
+        // 设置当前武器
+        this.activeWeaponSlot = data.player.activeWeaponSlot;
+        this.currentWeapon = this.weaponSlots[this.activeWeaponSlot] || getStarterWeapon();
+        this.applyWeaponStats();
+
+        // 恢复属性加成
+        if (data.stats) {
+            this.stats.attack = data.stats.attack;
+            this.stats.defense = data.stats.defense;
+            this.stats.attackSpeed = data.stats.attackSpeed;
+            this.stats.critRate = data.stats.critRate;
+            this.stats.critDamage = data.stats.critDamage;
+            this.stats.moveSpeed = data.stats.moveSpeed;
+        }
+
+        // 发射更新事件
+        this.scene.events.emit('skill-changed');
+        this.scene.events.emit('weaponSwitched', {
+            slot: this.activeWeaponSlot,
+            weapon: this.currentWeapon
+        });
+        this.scene.events.emit('updateHealth', this.stats.hp, this.stats.maxHp);
+        this.scene.events.emit('experienceChanged', this.experience, this.maxExperience, this.level);
+        this.scene.events.emit('killCountUpdated', this.killCount);
     }
 }

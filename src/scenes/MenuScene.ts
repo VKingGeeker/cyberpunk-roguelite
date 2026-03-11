@@ -183,6 +183,7 @@ export default class MenuScene extends Phaser.Scene {
 
         const buttons = [
             { text: '>> START GAME', action: () => this.startGame(), color: 0x00ffff },
+            { text: '>> RESET TUTORIAL', action: () => this.resetTutorial(), color: 0x00ff00 },
             { text: '>> SETTINGS', action: () => this.showSettings(), color: 0xff00ff },
             { text: '>> ABOUT', action: () => this.showAbout(), color: 0xffff00 }
         ];
@@ -385,6 +386,44 @@ export default class MenuScene extends Phaser.Scene {
      */
     private startGame(): void {
         this.scene.start('GameScene');
+    }
+
+    /**
+     * 重置教程
+     */
+    private resetTutorial(): void {
+        // 导入TutorialSystem并重置
+        import('../systems/TutorialSystem').then(({ TutorialSystem }) => {
+            TutorialSystem.reset();
+            
+            // 显示确认消息
+            this.showMessage('Tutorial has been reset!', 0x00ff00);
+        });
+    }
+
+    /**
+     * 显示消息
+     */
+    private showMessage(text: string, color: number): void {
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
+        
+        const msg = this.add.text(width / 2, height - 100, text, {
+            fontSize: '24px',
+            fontStyle: 'bold',
+            color: `#${color.toString(16).padStart(6, '0')}`,
+            fontFamily: 'Courier New, monospace',
+            backgroundColor: '#000000',
+            padding: { x: 20, y: 10 }
+        }).setOrigin(0.5);
+        
+        this.tweens.add({
+            targets: msg,
+            alpha: 0,
+            y: msg.y - 30,
+            duration: 2000,
+            onComplete: () => msg.destroy()
+        });
     }
 
     /**
