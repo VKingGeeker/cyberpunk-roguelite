@@ -95,6 +95,11 @@ cyberpunk-roguelite-mvp/
 │   ├── utils/             # 工具函数
 │   │   └── MathUtils.ts   # 数学工具
 │   └── main.ts            # 游戏入口
+├── docs/                  # 设计文档
+│   ├── PROGRESS.md        # 项目进度文档
+│   ├── cyberpunk_roguelite_game_prompt.md      # 游戏设计提示词
+│   ├── cyberpunk_roguelite_systems_detail.md   # 系统详细设计
+│   └── mvp_project_structure.md                # MVP项目结构
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
@@ -158,17 +163,6 @@ pnpm build
 - 已学会的技能可选择升级（最高5级）
 - 升级后技能伤害提升、范围扩大、冷却减少
 
-```typescript
-// 技能自动触发逻辑
-private handlePassiveSkills(time: number): void {
-    this.ownedSkills.forEach((data, skillId) => {
-        if (time < data.cooldownEndTime) return;
-        if (enemies.length === 0) return;
-        this.triggerSkill(skillId, skill, enemies, time);
-    });
-}
-```
-
 ### 武器系统
 
 **武器类型**：
@@ -191,16 +185,6 @@ private handlePassiveSkills(time: number): void {
 - 按键1/2/3快速切换
 - 武器属性直接影响攻击力、攻速、暴击等
 
-```typescript
-// 武器切换
-public switchWeapon(slotIndex: number): void {
-    if (!this.weaponSlots[slotIndex]) return;
-    this.activeWeaponSlot = slotIndex;
-    this.currentWeapon = this.weaponSlots[slotIndex]!;
-    this.applyWeaponStats();
-}
-```
-
 ### 合成系统
 
 **合成配方**：
@@ -213,30 +197,15 @@ public switchWeapon(slotIndex: number): void {
 - 右上：材料需求（显示拥有/所需数量）
 - 右下：结果预览（显示武器详细属性）
 
-```typescript
-// 执行合成
-private performCraft(recipe: CraftingRecipe): void {
-    // 移除材料
-    for (const material of recipe.ingredients) {
-        // 从背包移除指定数量的武器
-    }
-    // 添加结果武器
-    const resultWeapon = getWeaponById(recipe.result.itemId);
-    this.player.equipWeapon(resultWeapon);
-}
-```
-
 ### 战斗系统
 
-战斗系统 (`CombatSystem.ts`) 负责处理伤害计算、暴击判定、连击加成等核心战斗逻辑。
+战斗系统负责处理伤害计算、暴击判定、连击加成等核心战斗逻辑。
 
-```typescript
-// 计算伤害
-const damageResult = CombatSystem.calculateDamage(attacker.stats, defender.stats);
-// damageResult 包含：damage, isCrit, isBlocked, elementalBonus
-
-// 计算技能伤害
-const skillDamage = CombatSystem.calculateSkillDamage(attacker.stats, defender.stats, damageMultiplier);
+**伤害公式**：
+```
+基础伤害 = 攻击力 - 防御力 * 0.5
+最小伤害 = max(基础伤害, 1)
+最终伤害 = 最小伤害 * 暴击倍率（如果暴击）
 ```
 
 ### 敌人生成系统
@@ -248,24 +217,7 @@ const skillDamage = CombatSystem.calculateSkillDamage(attacker.stats, defender.s
 - 在玩家周围400-800像素环形区域生成
 - 定期清理距离玩家超过1200像素的敌人
 
-```typescript
-// 敌人生成位置计算
-const angle = Math.random() * Math.PI * 2;
-const distance = GAME_CONFIG.enemy.minSpawnDistance + 
-    Math.random() * (GAME_CONFIG.enemy.maxSpawnDistance - GAME_CONFIG.enemy.minSpawnDistance);
-const x = playerX + Math.cos(angle) * distance;
-const y = playerY + Math.sin(angle) * distance;
-```
-
 ## 数值平衡
-
-### 伤害计算公式
-
-```
-基础伤害 = 攻击力 - 防御力 * 0.5
-最小伤害 = max(基础伤害, 1)
-最终伤害 = 最小伤害 * 暴击倍率（如果暴击）
-```
 
 ### 武器属性范围
 
@@ -284,13 +236,100 @@ const y = playerY + Math.sin(angle) * distance;
 | 防御型 | 8-12秒 | 每级-0.5秒 |
 | 辅助型 | 6-10秒 | 每级-0.4秒 |
 
-### 地图配置
+---
 
-- 世界大小：3200 x 2400 像素
-- 相机跟随玩家
-- 霓虹网格地板
-- 电路板纹理
-- 随机霓虹光点
+## 版本说明 (Version History)
+
+### 当前版本：v1.0.0 (MVP)
+
+**发布日期**：2025年3月
+
+**版本概述**：
+MVP 版本完成，实现了核心游戏循环，包括战斗、技能、武器、合成等基础系统。
+
+---
+
+### 版本历史
+
+#### v1.0.0 - MVP 完成 (2025-03)
+**新增功能**：
+- ✅ 核心战斗系统（移动、攻击、伤害计算、暴击、连击）
+- ✅ 被动技能系统（17种技能，自动触发，升级3选1）
+- ✅ 武器系统（12种武器，3槽位切换）
+- ✅ 合成系统（武器合成升级）
+- ✅ 大世界地图（3200x2400）
+- ✅ 完整UI系统（生命条、武器栏、技能栏、合成界面）
+- ✅ 程序生成角色纹理（无需外部资源）
+- ✅ 敌人环形区域生成策略
+
+**技术实现**：
+- TypeScript 代码：~9900 行
+- 核心文件：23 个
+- 技术栈：Phaser 3.90.0 + Vite 5.4 + TypeScript 5.9
+
+**已知限制**：
+- 无音效和背景音乐
+- 无存档系统
+- 敌人AI较为简单
+- 缺少教程引导
+
+---
+
+#### v0.1.0 - 项目初始化 (开发初期)
+**新增功能**：
+- ✅ 项目架构搭建
+- ✅ 基础场景系统
+- ✅ 玩家移动和攻击
+
+---
+
+### 下一版本计划 (v1.1.0)
+
+**预计内容**：
+- [ ] 时间回溯机制
+- [ ] 存档/读档系统
+- [ ] 随机事件系统
+- [ ] 音效和背景音乐
+
+---
+
+### 版本命名规范
+
+- **主版本号 (Major)**：重大架构变更、不兼容更新
+- **次版本号 (Minor)**：新功能添加、向后兼容
+- **修订号 (Patch)**：Bug修复、小改进
+
+示例：
+- `v1.0.0` → `v1.1.0`：新增时间回溯功能
+- `v1.1.0` → `v1.1.1`：修复技能冷却Bug
+
+---
+
+## 后续开发计划
+
+### 阶段 2：核心完善
+- 时间回溯机制
+- 存档系统
+- 随机事件系统
+- 音效系统
+
+### 阶段 3：内容扩展
+- 多职业系统（4个职业）
+- 职业专属技能树
+- 更多武器和敌人
+
+### 阶段 4：联机功能
+- 2-4人联机合作
+- 状态同步
+
+### 阶段 5：打磨上线
+- 用户体验优化
+- 性能优化
+- 正式发布
+
+详细进度请查看 [docs/PROGRESS.md](docs/PROGRESS.md)
+
+---
 
 ## 已知问题
 
@@ -299,26 +338,6 @@ const y = playerY + Math.sin(angle) * distance;
 3. 缺少音效和背景音乐
 4. 地图生成较为简单，缺少复杂地形
 5. 部分技能特效可以进一步优化
-
-## 后续计划
-
-### 短期（1-2周）
-- [ ] 添加更多武器类型
-- [ ] 实现存档/读档功能
-- [ ] 添加音效和背景音乐
-- [ ] 优化技能特效
-
-### 中期（3-4周）
-- [ ] 实现时间回溯机制
-- [ ] 添加更多技能和物品
-- [ ] 完善随机事件系统
-- [ ] 优化AI行为
-
-### 长期（1-2月）
-- [ ] 添加更多职业
-- [ ] 实现联机功能
-- [ ] 开发完整技能树
-- [ ] 添加更多关卡和BOSS
 
 ## 贡献指南
 
