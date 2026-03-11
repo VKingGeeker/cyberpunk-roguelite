@@ -2,6 +2,14 @@
 
 一款基于 Phaser 3 开发的赛博朋克肉鸽游戏 MVP 版本。
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Phaser-3.90.0-6a0dad?style=flat-square&logo=phaser" alt="Phaser">
+  <img src="https://img.shields.io/badge/TypeScript-5.9.x-3178c6?style=flat-square&logo=typescript" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Vite-5.4.x-646cff?style=flat-square&logo=vite" alt="Vite">
+  <img src="https://img.shields.io/badge/pnpm-Latest-f69220?style=flat-square" alt="pnpm">
+  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License">
+</p>
+
 ## 项目概述
 
 这是一个单人开发的 2D 网页肉鸽游戏，采用 TypeScript + Phaser 3 技术栈。MVP 版本实现了核心游戏循环，包括战斗、技能、物品、武器、合成等基础系统。
