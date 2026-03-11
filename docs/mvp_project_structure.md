@@ -1,31 +1,35 @@
 # 赛博朋克肉鸽游戏 MVP 开发计划
 
-## MVP 范围界定
+## MVP 实现状态概览
 
-### 包含内容
-- **1个职业**：街头武士
-- **1个关卡**：10分钟流程（出生点 → 随机事件 → 精英怪 → 传送门）
-- **3种敌人**：普通怪（街头混混）、精英怪（赛博保镖）、BOSS（区域首领）
-- **基础战斗系统**：移动、攻击、技能释放（3个主动技能）
-- **简化物品系统**：4把武器、2套防具、3种消耗品
-- **基础合成系统**：同品级升级（2灰→1蓝、2蓝→1紫）
-- **本地单人模式**：自动存档、手动存档
+### 已完成内容 ✅
+- **1个职业**：赛博朋克女战士
+- **大世界地图**：3200x2400像素，相机跟随玩家
+- **3种敌人类型**：普通怪、精英怪、BOSS
+- **完整战斗系统**：移动、攻击、伤害计算、暴击、连击
+- **被动技能系统**：17种技能，自动触发，升级3选1
+- **武器系统**：12种武器（4个稀有度），3槽位切换
+- **合成系统**：基础武器合成升级
+- **完整UI系统**：生命条、武器栏、技能栏、合成界面
 
-### 暂不包含
-- 联机功能
+### 暂未实现 ❌
 - 时间回溯机制
-- 随机事件系统（简化为固定商人）
+- 随机事件系统
 - 多职业系统
-- 完整技能树（仅实现3个主动技能）
+- 联机功能
+- 完整技能树（职业专属）
+- 存档/读档系统
+- 音效和背景音乐
 
 ---
 
 ## 技术栈选择
 
 ### 前端框架
-- **游戏引擎**：Phaser 3（轻量级、适合2D网页游戏）
-- **构建工具**：Vite（快速开发、热更新）
-- **语言**：TypeScript（类型安全、便于维护）
+- **游戏引擎**：Phaser 3.90.0（轻量级、适合2D网页游戏）
+- **构建工具**：Vite 5.4（快速开发、热更新）
+- **语言**：TypeScript 5.9（类型安全、便于维护）
+- **包管理器**：pnpm
 
 ### 为什么选择 Phaser 3
 - 专为2D游戏设计，内置物理引擎、碰撞检测
@@ -33,52 +37,52 @@
 - 社区活跃，文档完善
 - 支持Canvas和WebGL渲染
 
-### 项目结构
+---
+
+## 项目结构
+
 ```
 cyberpunk-roguelite-mvp/
+├── public/                 # 静态资源
+│   └── index.html         # HTML入口
 ├── src/
 │   ├── core/              # 核心系统
-│   │   ├── Game.ts        # 游戏入口
-│   │   ├── Config.ts      # 游戏配置
-│   │   ├── StateManager.ts # 状态管理
-│   │   └── AssetLoader.ts # 资源加载器
-│   ├── scenes/            # 场景
-│   │   ├── BootScene.ts   # 启动场景
-│   │   ├── MenuScene.ts   # 主菜单场景
-│   │   ├── GameScene.ts   # 游戏主场景
-│   │   └── UIScene.ts     # UI场景
-│   ├── entities/          # 实体
-│   │   ├── Player.ts      # 玩家实体
-│   │   ├── Enemy.ts       # 敌人实体
-│   │   ├── Item.ts        # 物品实体
-│   │   └── Merchant.ts    # 商人实体
-│   ├── systems/           # 系统模块
-│   │   ├── CombatSystem.ts    # 战斗系统
-│   │   ├── InventorySystem.ts # 物品系统
-│   │   ├── SkillSystem.ts     # 技能系统
-│   │   ├── CraftingSystem.ts  # 合成系统
-│   │   └── LevelSystem.ts     # 关卡系统
-│   ├── ui/                # UI组件
-│   │   ├── HealthBar.ts   # 生命条
-│   │   ├── SkillBar.ts    # 技能栏
-│   │   ├── InventoryUI.ts # 背包UI
-│   │   └── CraftingUI.ts # 合成UI
+│   │   ├── Config.ts      # 游戏配置（属性、颜色、枚举定义）
+│   │   └── Types.ts       # 类型定义（接口、类型别名）
 │   ├── data/              # 数据定义
 │   │   ├── Items.ts       # 物品数据
-│   │   ├── Skills.ts      # 技能数据
-│   │   └── Enemies.ts     # 敌人数据
-│   └── utils/             # 工具函数
-│       ├── MathUtils.ts   # 数学工具
-│       └── CollisionUtils.ts # 碰撞检测工具
-├── public/
-│   ├── assets/            # 游戏资源
-│   │   ├── images/        # 图片资源
-│   │   ├── audio/         # 音频资源
-│   │   └── data/          # 数据文件
-│   └── index.html         # HTML入口
+│   │   ├── Skills.ts      # 技能数据（17种被动技能）
+│   │   ├── Weapons.ts     # 武器数据（12种武器）
+│   │   ├── Enemies.ts     # 敌人数据
+│   │   └── Crafting.ts    # 合成配方数据
+│   ├── systems/           # 系统模块
+│   │   ├── CombatSystem.ts    # 战斗系统（伤害计算、暴击判定）
+│   │   ├── InventorySystem.ts # 物品系统（背包管理）
+│   │   ├── SkillSystem.ts     # 技能系统（被动技能触发）
+│   │   └── CraftingSystem.ts  # 合成系统（配方检查、合成执行）
+│   ├── entities/          # 游戏实体
+│   │   ├── Player.ts      # 玩家实体（武器切换、技能管理）
+│   │   ├── Enemy.ts       # 敌人实体（AI行为、追踪攻击）
+│   │   ├── PowerUp.ts     # 升级道具实体（经验球）
+│   │   └── Merchant.ts    # 商人实体（预留）
+│   ├── scenes/            # 场景
+│   │   ├── BootScene.ts   # 启动场景（程序生成纹理）
+│   │   ├── MenuScene.ts   # 主菜单场景
+│   │   ├── GameScene.ts   # 游戏主场景（战斗、敌人生成）
+│   │   ├── UIScene.ts     # UI场景（生命条、技能栏、武器栏）
+│   │   ├── SkillSelectScene.ts  # 技能选择场景（升级3选1）
+│   │   └── CraftingScene.ts     # 合成场景（武器合成界面）
+│   ├── utils/             # 工具函数
+│   │   └── MathUtils.ts   # 数学工具（距离计算、随机数）
+│   └── main.ts            # 游戏入口
+├── docs/                  # 设计文档
+│   ├── cyberpunk_roguelite_game_prompt.md
+│   ├── cyberpunk_roguelite_systems_detail.md
+│   └── mvp_project_structure.md
 ├── package.json
 ├── tsconfig.json
-└── vite.config.ts
+├── vite.config.ts
+└── README.md
 ```
 
 ---
@@ -89,9 +93,10 @@ cyberpunk-roguelite-mvp/
 
 #### 功能
 - 玩家移动（WASD或方向键）
-- 普通攻击（鼠标左键）
-- 技能释放（数字键1-3）
-- 敌人AI（巡逻、追击、攻击）
+- 普通攻击（鼠标左键，使用当前武器）
+- 伤害计算（基础攻击 + 武器加成 - 防御）
+- 暴击判定（暴击率 × 暴击伤害）
+- 连击系统（连击数统计和显示）
 
 #### 数据结构
 ```typescript
@@ -104,6 +109,8 @@ interface CombatStats {
     critRate: number;        // 暴击率（0-1）
     critDamage: number;      // 暴击伤害倍率
     moveSpeed: number;       // 移动速度
+    mana?: number;           // 当前法力值
+    maxMana?: number;        // 最大法力值
 }
 
 interface CombatState {
@@ -111,21 +118,24 @@ interface CombatState {
     isStunned: boolean;      // 是否被眩晕
     lastAttackTime: number;  // 上次攻击时间
     comboCount: number;      // 连击数
+    lastComboTime: number;   // 上次连击时间
 }
 ```
 
 #### 伤害计算
 ```typescript
-function calculateDamage(attacker: CombatStats, defender: CombatStats): number {
+function calculateDamage(attacker: CombatStats, defender: CombatStats): DamageResult {
+    // 基础伤害 = 攻击力 - 防御 × 0.5
     let damage = attacker.attack - defender.defense * 0.5;
     damage = Math.max(damage, 10); // 最小伤害10
 
-    // 暴击计算
-    if (Math.random() < attacker.critRate) {
+    // 暴击判定
+    const isCrit = Math.random() < attacker.critRate;
+    if (isCrit) {
         damage *= attacker.critDamage;
     }
 
-    return Math.floor(damage);
+    return { damage: Math.floor(damage), isCrit };
 }
 ```
 
@@ -135,36 +145,20 @@ function calculateDamage(attacker: CombatStats, defender: CombatStats): number {
 - 物品获取（掉落、购买）
 - 物品装备（武器、防具）
 - 物品使用（消耗品）
-- 背包管理
+- 背包管理（20格）
 
 #### 数据结构
 ```typescript
 interface Item {
     id: string;
     name: string;
-    type: 'weapon' | 'armor' | 'consumable';
+    type: 'weapon' | 'armor' | 'consumable' | 'material';
     rarity: 'common' | 'rare' | 'epic' | 'legendary' | 'ultimate';
     stats?: ItemStats;       // 装备属性
     effect?: ConsumableEffect; // 消耗品效果
     icon: string;            // 图标资源路径
     description: string;     // 描述
-}
-
-interface ItemStats {
-    attack?: number;
-    defense?: number;
-    attackSpeed?: number;
-    critRate?: number;
-    critDamage?: number;
-    moveSpeed?: number;
-    hp?: number;
-    maxHp?: number;
-}
-
-interface ConsumableEffect {
-    type: 'heal' | 'mana' | 'speed' | 'shield';
-    value: number;
-    duration?: number;       // 持续时间（秒）
+    specialEffect?: string;  // 特殊效果
 }
 
 interface InventorySlot {
@@ -173,102 +167,13 @@ interface InventorySlot {
 }
 ```
 
-#### MVP 物品列表
-```typescript
-const MVP_ITEMS: Item[] = [
-    // 武器
-    {
-        id: 'weapon_common_vibroblade',
-        name: '振动短刀',
-        type: 'weapon',
-        rarity: 'common',
-        stats: { attack: 25, attackSpeed: 1.2 },
-        icon: 'vibroblade.png',
-        description: '基础武器，无视10%护甲'
-    },
-    {
-        id: 'weapon_rare_heatkatana',
-        name: '热能武士刀',
-        type: 'weapon',
-        rarity: 'rare',
-        stats: { attack: 45, attackSpeed: 0.9 },
-        icon: 'heatkatana.png',
-        description: '攻击有20%概率造成燃烧'
-    },
-    {
-        id: 'weapon_epic_highfreqblade',
-        name: '高频振刃',
-        type: 'weapon',
-        rarity: 'epic',
-        stats: { attack: 80, attackSpeed: 1.5 },
-        icon: 'highfreqblade.png',
-        description: '满振动槽后下次攻击必定暴击'
-    },
-    {
-        id: 'weapon_legendary_thunderaxe',
-        name: '雷电战斧',
-        type: 'weapon',
-        rarity: 'legendary',
-        stats: { attack: 150, attackSpeed: 0.7 },
-        icon: 'thunderaxe.png',
-        description: '对机械敌人造成双倍伤害'
-    },
-    // 防具
-    {
-        id: 'armor_common_jacket',
-        name: '皮夹克',
-        type: 'armor',
-        rarity: 'common',
-        stats: { defense: 15 },
-        icon: 'jacket.png',
-        description: '基础护甲'
-    },
-    {
-        id: 'armor_rare_kevlar',
-        name: '凯夫拉护甲',
-        type: 'armor',
-        rarity: 'rare',
-        stats: { defense: 30 },
-        icon: 'kevlar.png',
-        description: '受到近战伤害减少15%'
-    },
-    // 消耗品
-    {
-        id: 'consumable_nanobot',
-        name: '医疗纳米机器人',
-        type: 'consumable',
-        rarity: 'common',
-        effect: { type: 'heal', value: 30 },
-        icon: 'nanobot.png',
-        description: '立即回复30%生命值'
-    },
-    {
-        id: 'consumable_battery',
-        name: '能量电池',
-        type: 'consumable',
-        rarity: 'common',
-        effect: { type: 'mana', value: 50 },
-        icon: 'battery.png',
-        description: '立即回复50%法力值'
-    },
-    {
-        id: 'consumable_teleport',
-        name: '闪现装置',
-        type: 'consumable',
-        rarity: 'rare',
-        effect: { type: 'speed', value: 5, duration: 0.5 },
-        icon: 'teleport.png',
-        description: '瞬移至前方5米处'
-    }
-];
-```
-
 ### 3. 技能系统 (SkillSystem)
 
 #### 功能
-- 技能槽管理（3个主动技能）
-- 技能释放（法力值消耗、冷却时间）
-- 技能效果实现
+- 被动技能自动触发（无手动操作）
+- 冷却时间管理
+- 技能升级（最高5级）
+- 升级时3选1选择
 
 #### 数据结构
 ```typescript
@@ -277,295 +182,294 @@ interface Skill {
     name: string;
     description: string;
     icon: string;
-    manaCost: number;        // 法力消耗
+    branch: 'offense' | 'defense' | 'utility'; // 技能分支
+    manaCost: number;       // 法力消耗（MVP为0）
     cooldown: number;       // 冷却时间（秒）
     lastUsedTime: number;   // 上次使用时间
-    level: number;          // 技能等级（0-3）
-    effect: SkillEffect;     // 技能效果
+    level: number;          // 技能等级（0-5）
+    maxLevel: number;       // 最大等级（5）
+    effect: SkillEffect;    // 技能效果
 }
 
 interface SkillEffect {
-    type: 'slash' | 'spin' | 'dash' | 'heal' | 'shield';
-    damage?: number;         // 伤害倍率（武器攻击力的倍数）
-    range?: number;          // 范围（像素）
-    duration?: number;       // 持续时间（秒）
+    type: SkillType;        // 技能类型
+    damage?: number;        // 伤害倍率
+    range?: number;         // 范围（像素）
+    duration?: number;      // 持续时间（秒）
     healValue?: number;     // 治疗量
-    shieldValue?: number;   // 护盾值
+    chains?: number;        // 连锁次数
+    stunDuration?: number;  // 眩晕时间
 }
 ```
 
-#### MVP 技能列表（街头武士）
+#### 技能自动触发逻辑
 ```typescript
-const MVP_SKILLS: Skill[] = [
-    {
-        id: 'skill_slash',
-        name: '横扫斩',
-        description: '前方扇形范围斩击，造成150%武器伤害',
-        icon: 'slash.png',
-        manaCost: 20,
-        cooldown: 5,
-        lastUsedTime: 0,
-        level: 0,
-        effect: {
-            type: 'slash',
-            damage: 1.5,
-            range: 150
-        }
-    },
-    {
-        id: 'skill_spin',
-        name: '旋风斩',
-        description: '原地旋转攻击，持续2秒，造成200%武器伤害/秒',
-        icon: 'spin.png',
-        manaCost: 40,
-        cooldown: 10,
-        lastUsedTime: 0,
-        level: 0,
-        effect: {
-            type: 'spin',
-            damage: 2.0,
-            duration: 2
-        }
-    },
-    {
-        id: 'skill_dash',
-        name: '闪现突袭',
-        description: '瞬移至目标敌人身后，造成100%武器伤害',
-        icon: 'dash.png',
-        manaCost: 15,
-        cooldown: 3,
-        lastUsedTime: 0,
-        level: 0,
-        effect: {
-            type: 'dash',
-            damage: 1.0,
-            range: 200
-        }
-    }
-];
+// Player.ts 中的技能触发
+private handlePassiveSkills(time: number): void {
+    const enemies = this.getEnemiesInRange(300);
+    if (enemies.length === 0) return;
+
+    this.ownedSkills.forEach((data, skillId) => {
+        const skill = PASSIVE_SKILLS.find(s => s.id === skillId);
+        if (!skill || time < data.cooldownEndTime) return;
+
+        // 触发技能效果
+        this.triggerSkill(skillId, skill, enemies, time);
+        
+        // 设置冷却
+        const cooldownReduction = 1 - (data.level - 1) * 0.1; // 每级减少10%冷却
+        data.cooldownEndTime = time + skill.cooldown * 1000 * cooldownReduction;
+    });
+}
 ```
 
-### 4. 合成系统 (CraftingSystem)
+### 4. 武器系统
 
 #### 功能
-- 物品合成（同品级升级）
-- 合成配方查询
-- 材料检查
+- 武器装备和切换
+- 3个武器槽位
+- 武器属性加成
+- 武器合成升级
+
+#### 数据结构
+```typescript
+interface Weapon {
+    id: string;
+    name: string;
+    type: 'sword' | 'blade' | 'staff' | 'hammer' | 'dagger';
+    rarity: 'common' | 'rare' | 'epic' | 'legendary';
+    attack: number;          // 基础攻击力
+    attackSpeed: number;     // 攻击速度
+    critRate: number;        // 暴击率
+    critDamage: number;      // 暴击伤害
+    range: number;           // 攻击范围
+    specialEffect?: string;  // 特殊效果描述
+    icon: string;
+    description: string;
+}
+```
+
+#### 武器切换逻辑
+```typescript
+// Player.ts
+public switchWeapon(slotIndex: number): void {
+    if (!this.weaponSlots[slotIndex]) return;
+    
+    this.activeWeaponSlot = slotIndex;
+    this.currentWeapon = this.weaponSlots[slotIndex]!;
+    this.applyWeaponStats();
+    
+    // 更新UI
+    this.scene.events.emit('weaponSwitched', {
+        slot: slotIndex,
+        weapon: this.currentWeapon
+    });
+}
+
+private applyWeaponStats(): void {
+    if (!this.currentWeapon) return;
+    
+    // 武器属性叠加到基础属性
+    this.stats.attack = this.baseStats.attack + this.currentWeapon.attack;
+    this.stats.attackSpeed = this.baseStats.attackSpeed * this.currentWeapon.attackSpeed;
+    this.stats.critRate = this.baseStats.critRate + this.currentWeapon.critRate;
+    this.stats.critDamage = this.baseStats.critDamage * this.currentWeapon.critDamage;
+}
+```
+
+### 5. 合成系统 (CraftingSystem)
+
+#### 功能
+- 武器合成（同品质升级）
+- 配方检查
+- 合成执行
 
 #### 数据结构
 ```typescript
 interface CraftingRecipe {
+    id: string;
+    name: string;
     ingredients: { itemId: string; quantity: number }[];
     result: { itemId: string; quantity: number };
+    category: 'upgrade' | 'fusion' | 'enhance';
 }
 
 interface CraftingState {
     isCrafting: boolean;
     currentRecipe: CraftingRecipe | null;
+    progress: number;
 }
 ```
 
-#### MVP 合成配方
+#### 合成配方
 ```typescript
-const MVP_RECIPES: CraftingRecipe[] = [
+const CRAFTING_RECIPES: CraftingRecipe[] = [
+    // 普通升级到稀有
     {
+        id: 'common_to_rare',
+        name: '普通武器升级',
         ingredients: [
-            { itemId: 'weapon_common_vibroblade', quantity: 2 }
+            { itemId: 'any_common_weapon', quantity: 2 }
         ],
-        result: { itemId: 'weapon_rare_heatkatana', quantity: 1 }
+        result: { itemId: 'random_rare_weapon', quantity: 1 },
+        category: 'upgrade'
     },
+    // 稀有升级到史诗
     {
+        id: 'rare_to_epic',
+        name: '稀有武器升级',
         ingredients: [
-            { itemId: 'weapon_rare_heatkatana', quantity: 2 },
-            { itemId: 'material_gear', quantity: 5 }
+            { itemId: 'any_rare_weapon', quantity: 2 }
         ],
-        result: { itemId: 'weapon_epic_highfreqblade', quantity: 1 }
+        result: { itemId: 'random_epic_weapon', quantity: 1 },
+        category: 'upgrade'
     },
+    // 史诗升级到传说
     {
+        id: 'epic_to_legendary',
+        name: '史诗武器升级',
         ingredients: [
-            { itemId: 'weapon_epic_highfreqblade', quantity: 2 },
-            { itemId: 'material_chip', quantity: 3 }
+            { itemId: 'any_epic_weapon', quantity: 2 }
         ],
-        result: { itemId: 'weapon_legendary_thunderaxe', quantity: 1 }
-    },
-    {
-        ingredients: [
-            { itemId: 'armor_common_jacket', quantity: 2 }
-        ],
-        result: { itemId: 'armor_rare_kevlar', quantity: 1 }
+        result: { itemId: 'random_legendary_weapon', quantity: 1 },
+        category: 'upgrade'
     }
 ];
 ```
 
-### 5. 关卡系统 (LevelSystem)
+### 6. 关卡系统
 
 #### 功能
-- 关卡生成（基于瓦片的随机地图）
-- 敌人生成（按数量和类型）
-- 商人生成（固定位置）
-- 传送门生成（击败精英怪后）
+- 大世界地图（3200x2400）
+- 相机跟随玩家
+- 敌人动态生成
+- 经验球掉落
 
-#### 数据结构
+#### 配置
 ```typescript
-interface LevelConfig {
-    width: number;           // 地图宽度（瓦片数）
-    height: number;          // 地图高度（瓦片数）
-    tileSize: number;        // 瓦片大小（像素）
-    enemyCount: number;      // 敌人数量
-    eliteCount: number;      // 精英怪数量
-    merchantPosition: { x: number; y: number }; // 商人位置
-    portalPosition: { x: number; y: number } | null; // 传送门位置（击败精英怪后生成）
-}
-
-interface LevelState {
-    enemiesDefeated: number;
-    eliteDefeated: boolean;
-    merchantVisited: boolean;
-    portalSpawned: boolean;
-    timeElapsed: number;     // 已用时间（秒）
-}
+const LEVEL_CONFIG = {
+    worldWidth: 3200,        // 世界宽度
+    worldHeight: 2400,       // 世界高度
+    enemySpawnInterval: 800, // 敌人生成间隔（毫秒）
+    maxEnemies: 80,          // 最大敌人数量
+    spawnRadius: 400,        // 玩家周围生成半径
+    spawnMinDistance: 200    // 最小生成距离
+};
 ```
 
-#### MVP 关卡配置
+#### 敌人生成逻辑
 ```typescript
-const MVP_LEVEL_CONFIG: LevelConfig = {
-    width: 50,
-    height: 50,
-    tileSize: 32,
-    enemyCount: 10,
-    eliteCount: 1,
-    merchantPosition: { x: 25, y: 25 },
-    portalPosition: null
-};
+// GameScene.ts
+private spawnEnemy(): void {
+    if (this.enemies.length >= GAME_CONFIG.level.maxEnemies) return;
+
+    // 在玩家周围环形区域生成
+    const angle = Math.random() * Math.PI * 2;
+    const distance = GAME_CONFIG.level.spawnRadius * (0.5 + Math.random() * 0.5);
+    
+    const x = this.player.x + Math.cos(angle) * distance;
+    const y = this.player.y + Math.sin(angle) * distance;
+    
+    // 确保在世界范围内
+    const clampedX = Phaser.Math.Clamp(x, 50, GAME_CONFIG.worldWidth - 50);
+    const clampedY = Phaser.Math.Clamp(y, 50, GAME_CONFIG.worldHeight - 50);
+
+    const enemy = new Enemy(this, clampedX, clampedY, EnemyType.COMMON);
+    this.enemies.push(enemy);
+}
 ```
 
 ---
 
-## 开发里程碑
+## 开发里程碑（已完成）
 
-### 第1周：项目搭建 + 核心框架
-- [ ] 项目初始化（Phaser 3 + Vite + TypeScript）
-- [ ] 核心系统架构搭建
-- [ ] 场景切换系统
-- [ ] 资源加载系统
-- [ ] 基础UI框架
+### 第1周：项目搭建 + 核心框架 ✅
+- [x] 项目初始化（Phaser 3 + Vite + TypeScript）
+- [x] 核心系统架构搭建
+- [x] 场景切换系统
+- [x] 程序生成纹理系统（无需外部资源）
+- [x] 基础UI框架
 
-### 第2周：战斗系统
-- [ ] 玩家实体（移动、动画）
-- [ ] 敌人实体（AI、动画）
-- [ ] 碰撞检测系统
-- [ ] 伤害计算系统
-- [ ] 基础攻击和技能释放
+### 第2周：战斗系统 ✅
+- [x] 玩家实体（移动、动画、武器切换）
+- [x] 敌人实体（AI追踪、近战攻击）
+- [x] 碰撞检测系统
+- [x] 伤害计算系统
+- [x] 暴击和连击显示
 
-### 第3周：物品系统
-- [ ] 物品数据定义
-- [ ] 物品掉落系统
-- [ ] 背包UI系统
-- [ ] 装备系统
-- [ ] 消耗品使用系统
+### 第3周：技能系统 ✅
+- [x] 被动技能数据定义（17种）
+- [x] 技能自动触发系统
+- [x] 技能升级选择界面
+- [x] 技能冷却管理
 
-### 第4周：合成系统
-- [ ] 合成配方定义
-- [ ] 合成UI系统
-- [ ] 材料检查逻辑
-- [ ] 合成动画效果
+### 第4周：武器系统 ✅
+- [x] 武器数据定义（12种）
+- [x] 武器槽位和切换
+- [x] 武器属性加成
+- [x] 武器栏UI
 
-### 第5周：关卡系统
-- [ ] 地图生成系统
-- [ ] 敌人生成系统
-- [ ] 商人实体
-- [ ] 传送门系统
+### 第5周：合成系统 ✅
+- [x] 合成配方定义
+- [x] 合成UI系统
+- [x] 材料检查逻辑
+- [x] 合成执行
 
-### 第6周：打磨与测试
-- [ ] 音效和特效
-- [ ] 数值平衡调整
-- [ ] Bug修复
-- [ ] 性能优化
-
-### 第7周：上线准备
-- [ ] 打包部署
-- [ ] 文档编写
-- [ ] 用户测试反馈收集
+### 第6周：打磨与优化 ✅
+- [x] UI美化（赛博朋克风格）
+- [x] 数值平衡调整
+- [x] Bug修复
 
 ---
 
 ## 核心代码实现示例
 
-### 1. 游戏入口 (Game.ts)
+### 1. 游戏入口 (main.ts)
 ```typescript
 import Phaser from 'phaser';
 import BootScene from './scenes/BootScene';
 import MenuScene from './scenes/MenuScene';
 import GameScene from './scenes/GameScene';
 import UIScene from './scenes/UIScene';
+import SkillSelectScene from './scenes/SkillSelectScene';
+import CraftingScene from './scenes/CraftingScene';
 import { GAME_CONFIG } from './core/Config';
 
-class CyberpunkRogueliteGame {
-    private game: Phaser.Game;
-
-    constructor() {
-        this.game = new Phaser.Game({
-            type: Phaser.AUTO,
-            width: GAME_CONFIG.width,
-            height: GAME_CONFIG.height,
-            parent: 'game-container',
-            backgroundColor: '#000000',
-            physics: {
-                default: 'arcade',
-                arcade: {
-                    gravity: { x: 0, y: 0 },
-                    debug: false
-                }
-            },
-            scene: [BootScene, MenuScene, GameScene, UIScene]
-        });
-    }
-}
-
-new CyberpunkRogueliteGame();
-```
-
-### 2. 游戏配置 (Config.ts)
-```typescript
-export const GAME_CONFIG = {
-    width: 1280,
-    height: 720,
-    tileSize: 32,
-    maxInventorySlots: 20,
-    player: {
-        baseHp: 100,
-        baseAttack: 10,
-        baseDefense: 5,
-        baseMoveSpeed: 200,
-        baseCritRate: 0.05,
-        baseCritDamage: 1.5,
-        baseMana: 50,
-        manaRegenPerSecond: 1
+const config: Phaser.Types.Core.GameConfig = {
+    type: Phaser.AUTO,
+    width: GAME_CONFIG.width,
+    height: GAME_CONFIG.height,
+    parent: 'game-container',
+    backgroundColor: '#0a0a1a',
+    physics: {
+        default: 'arcade',
+        arcade: {
+            gravity: { x: 0, y: 0 },
+            debug: false
+        }
     },
-    level: {
-        duration: 600, // 10分钟
-        enemyRespawnTime: 10
-    },
-    crafting: {
-        commonToRare: 2,
-        rareToEpic: 3,
-        epicToLegendary: 4
-    }
+    scene: [
+        BootScene,
+        MenuScene,
+        GameScene,
+        UIScene,
+        SkillSelectScene,
+        CraftingScene
+    ]
 };
+
+new Phaser.Game(config);
 ```
 
-### 3. 玩家实体 (Player.ts)
+### 2. 玩家实体 (Player.ts) 关键代码
 ```typescript
-import Phaser from 'phaser';
-import { CombatStats, CombatState } from '../systems/CombatSystem';
-import { InventorySystem } from '../systems/InventorySystem';
-import { SkillSystem } from '../systems/SkillSystem';
-
 export default class Player extends Phaser.GameObjects.Sprite {
     private stats: CombatStats;
     private state: CombatState;
-    private inventory: InventorySystem;
-    private skills: SkillSystem;
+    private ownedSkills: Map<string, SkillData>;
+    private weaponSlots: (Weapon | null)[];
+    private currentWeapon: Weapon | null;
+    private activeWeaponSlot: number;
 
     constructor(scene: Phaser.Scene, x: number, y: number) {
         super(scene, x, y, 'player_idle');
@@ -574,36 +478,38 @@ export default class Player extends Phaser.GameObjects.Sprite {
 
         // 初始化属性
         this.stats = {
-            hp: 100,
-            maxHp: 100,
-            attack: 10,
-            defense: 5,
-            attackSpeed: 1.2,
-            critRate: 0.05,
-            critDamage: 1.5,
-            moveSpeed: 200
+            hp: GAME_CONFIG.player.baseHp,
+            maxHp: GAME_CONFIG.player.baseHp,
+            attack: GAME_CONFIG.player.baseAttack,
+            defense: GAME_CONFIG.player.baseDefense,
+            attackSpeed: GAME_CONFIG.player.baseAttackSpeed,
+            critRate: GAME_CONFIG.player.baseCritRate,
+            critDamage: GAME_CONFIG.player.baseCritDamage,
+            moveSpeed: GAME_CONFIG.player.baseMoveSpeed
         };
 
-        this.state = {
-            isAttacking: false,
-            isStunned: false,
-            lastAttackTime: 0,
-            comboCount: 0
-        };
-
-        this.inventory = new InventorySystem(20);
-        this.skills = new SkillSystem();
-
-        // 添加刚体
-        const body = this.body as Phaser.Physics.Arcade.Body;
-        body.setCollideWorldBounds(true);
-        body.setSize(32, 32);
+        // 初始化武器槽位
+        this.weaponSlots = [null, null, null];
+        this.activeWeaponSlot = 0;
+        
+        // 初始化技能
+        this.ownedSkills = new Map();
     }
 
     update(time: number, delta: number): void {
         if (this.state.isStunned) return;
 
         // 移动控制
+        this.handleMovement();
+        
+        // 攻击控制
+        this.handleAttack(time);
+        
+        // 被动技能触发
+        this.handlePassiveSkills(time);
+    }
+
+    private handleMovement(): void {
         const cursors = this.scene.input.keyboard.createCursorKeys();
         const velocity = new Phaser.Math.Vector2(0, 0);
 
@@ -613,365 +519,224 @@ export default class Player extends Phaser.GameObjects.Sprite {
         if (cursors.down.isDown) velocity.y = 1;
 
         velocity.normalize().scale(this.stats.moveSpeed);
-        const body = this.body as Phaser.Physics.Arcade.Body;
-        body.setVelocity(velocity.x, velocity.y);
-
-        // 攻击控制
-        if (this.scene.input.activePointer.isDown && !this.state.isAttacking) {
-            this.performAttack(time);
-        }
-
-        // 技能控制
-        if (this.scene.input.keyboard.checkDown(Phaser.Input.Keyboard.KeyCodes.ONE, 250)) {
-            this.skills.useSkill(0, time);
-        }
-        if (this.scene.input.keyboard.checkDown(Phaser.Input.Keyboard.KeyCodes.TWO, 250)) {
-            this.skills.useSkill(1, time);
-        }
-        if (this.scene.input.keyboard.checkDown(Phaser.Input.Keyboard.KeyCodes.THREE, 250)) {
-            this.skills.useSkill(2, time);
-        }
-
-        // 法力值恢复
-        this.stats.mana += this.stats.manaRegenPerSecond * (delta / 1000);
-        this.stats.mana = Math.min(this.stats.mana, this.stats.maxMana);
+        (this.body as Phaser.Physics.Arcade.Body).setVelocity(velocity.x, velocity.y);
     }
 
-    private performAttack(time: number): void {
-        const attackInterval = 1000 / this.stats.attackSpeed;
+    private handlePassiveSkills(time: number): void {
+        const enemies = this.getEnemiesInRange(300);
+        if (enemies.length === 0) return;
 
-        if (time - this.state.lastAttackTime < attackInterval) {
-            return;
-        }
+        this.ownedSkills.forEach((data, skillId) => {
+            const skill = PASSIVE_SKILLS.find(s => s.id === skillId);
+            if (!skill || time < data.cooldownEndTime) return;
 
-        this.state.lastAttackTime = time;
-        this.state.isAttacking = true;
-
-        // 播放攻击动画
-        this.anims.play('player_attack');
-
-        // 检测攻击范围内的敌人
-        const enemies = this.scene.children.getMatching('type', 'enemy') as Phaser.GameObjects.Sprite[];
-        enemies.forEach(enemy => {
-            const distance = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
-            if (distance < 50) {
-                // 造成伤害
-                const enemyStats = (enemy as any).stats;
-                const damage = this.calculateDamage(this.stats, enemyStats);
-                (enemy as any).takeDamage(damage);
-            }
-        });
-
-        // 攻击动画结束后恢复
-        this.once('animationcomplete', () => {
-            this.state.isAttacking = false;
+            this.triggerSkill(skillId, skill, enemies, time);
+            data.cooldownEndTime = time + skill.cooldown * 1000;
         });
     }
 
-    private calculateDamage(attacker: CombatStats, defender: CombatStats): number {
-        let damage = attacker.attack - defender.defense * 0.5;
-        damage = Math.max(damage, 10);
+    public grantRandomSkill(): void {
+        // 随机选择3个技能供玩家选择
+        const availableSkills = PASSIVE_SKILLS.filter(s => {
+            const owned = this.ownedSkills.get(s.id);
+            return !owned || owned.level < s.maxLevel;
+        });
 
-        if (Math.random() < attacker.critRate) {
-            damage *= attacker.critDamage;
-        }
-
-        return Math.floor(damage);
-    }
-
-    public takeDamage(damage: number): void {
-        this.stats.hp -= damage;
-        this.stats.hp = Math.max(this.stats.hp, 0);
-
-        // 更新UI
-        this.scene.events.emit('updateHealth', this.stats.hp, this.stats.maxHp);
-
-        if (this.stats.hp <= 0) {
-            this.scene.scene.start('MenuScene');
-        }
-    }
-
-    public heal(value: number): void {
-        this.stats.hp += value;
-        this.stats.hp = Math.min(this.stats.hp, this.stats.maxHp);
-
-        // 更新UI
-        this.scene.events.emit('updateHealth', this.stats.hp, this.stats.maxHp);
-    }
-
-    public getStats(): CombatStats {
-        return this.stats;
-    }
-
-    public getInventory(): InventorySystem {
-        return this.inventory;
+        const choices = Phaser.Utils.Array.Shuffle(availableSkills).slice(0, 3);
+        this.scene.scene.launch('SkillSelectScene', { choices, player: this });
     }
 }
 ```
 
-### 4. 敌人实体 (Enemy.ts)
+### 3. 敌人实体 (Enemy.ts) 关键代码
 ```typescript
-import Phaser from 'phaser';
-import { CombatStats, CombatState } from '../systems/CombatSystem';
-
 export default class Enemy extends Phaser.GameObjects.Sprite {
     private stats: CombatStats;
-    private state: CombatState;
-    private aiState: 'patrol' | 'chase' | 'attack' | 'stunned';
+    private aiState: 'patrol' | 'chase' | 'attack';
     private player: Player;
-    private patrolTarget: Phaser.Math.Vector2;
 
-    constructor(scene: Phaser.Scene, x: number, y: number, enemyType: 'common' | 'elite' | 'boss') {
-        super(scene, x, y, `enemy_${enemyType}_idle`);
+    constructor(scene: Phaser.Scene, x: number, y: number, enemyType: EnemyType) {
+        super(scene, x, y, `enemy_${enemyType}`);
         scene.add.existing(this);
         scene.physics.add.existing(this);
 
-        // 初始化属性
         this.initStats(enemyType);
-
-        this.state = {
-            isAttacking: false,
-            isStunned: false,
-            lastAttackTime: 0,
-            comboCount: 0
-        };
-
-        this.aiState = 'patrol';
+        this.aiState = 'chase';
         this.player = scene.children.getMatching('type', 'player')[0] as Player;
-        this.patrolTarget = new Phaser.Math.Vector2(x, y);
-
-        // 添加刚体
-        const body = this.body as Phaser.Physics.Arcade.Body;
-        body.setCollideWorldBounds(true);
-        body.setSize(32, 32);
     }
 
-    private initStats(enemyType: 'common' | 'elite' | 'boss'): void {
+    private initStats(enemyType: EnemyType): void {
         switch (enemyType) {
-            case 'common':
-                this.stats = {
-                    hp: 50,
-                    maxHp: 50,
-                    attack: 15,
-                    defense: 5,
-                    attackSpeed: 0.8,
-                    critRate: 0.02,
-                    critDamage: 1.2,
-                    moveSpeed: 100
-                };
+            case EnemyType.COMMON:
+                this.stats = { hp: 40, maxHp: 40, attack: 15, defense: 5, ... };
                 break;
-            case 'elite':
-                this.stats = {
-                    hp: 150,
-                    maxHp: 150,
-                    attack: 30,
-                    defense: 15,
-                    attackSpeed: 0.6,
-                    critRate: 0.05,
-                    critDamage: 1.3,
-                    moveSpeed: 120
-                };
+            case EnemyType.ELITE:
+                this.stats = { hp: 150, maxHp: 150, attack: 30, defense: 15, ... };
                 break;
-            case 'boss':
-                this.stats = {
-                    hp: 5000,
-                    maxHp: 5000,
-                    attack: 80,
-                    defense: 40,
-                    attackSpeed: 0.5,
-                    critRate: 0.08,
-                    critDamage: 1.5,
-                    moveSpeed: 80
-                };
+            case EnemyType.BOSS:
+                this.stats = { hp: 1000, maxHp: 1000, attack: 80, defense: 40, ... };
                 break;
         }
     }
 
     update(time: number, delta: number): void {
-        if (this.state.isStunned) return;
+        if (this.stats.hp <= 0) return;
 
-        // AI行为
-        this.updateAI(time, delta);
-
-        // 法力值恢复（如果需要）
-    }
-
-    private updateAI(time: number, delta: number): void {
-        const distanceToPlayer = Phaser.Math.Distance.Between(
-            this.x, this.y,
-            this.player.x, this.player.y
+        // 简单追踪AI
+        const distance = Phaser.Math.Distance.Between(
+            this.x, this.y, this.player.x, this.player.y
         );
 
-        switch (this.aiState) {
-            case 'patrol':
-                this.patrol(delta);
-                if (distanceToPlayer < 200) {
-                    this.aiState = 'chase';
-                }
-                break;
-            case 'chase':
-                this.chase(delta);
-                if (distanceToPlayer < 50) {
-                    this.aiState = 'attack';
-                }
-                if (distanceToPlayer > 300) {
-                    this.aiState = 'patrol';
-                }
-                break;
-            case 'attack':
-                this.attack(time);
-                if (distanceToPlayer > 50) {
-                    this.aiState = 'chase';
-                }
-                break;
-        }
-    }
-
-    private patrol(delta: number): void {
-        const body = this.body as Phaser.Physics.Arcade.Body;
-        const direction = new Phaser.Math.Vector2(
-            this.patrolTarget.x - this.x,
-            this.patrolTarget.y - this.y
-        );
-
-        if (direction.length() < 10) {
-            // 随机选择新的巡逻目标
-            this.patrolTarget.setTo(
-                Phaser.Math.Between(100, 1100),
-                Phaser.Math.Between(100, 600)
+        if (distance > 40) {
+            // 追踪玩家
+            const angle = Phaser.Math.Angle.Between(
+                this.x, this.y, this.player.x, this.player.y
+            );
+            const body = this.body as Phaser.Physics.Arcade.Body;
+            body.setVelocity(
+                Math.cos(angle) * this.stats.moveSpeed,
+                Math.sin(angle) * this.stats.moveSpeed
             );
         } else {
-            direction.normalize().scale(this.stats.moveSpeed * 0.5);
-            body.setVelocity(direction.x, direction.y);
+            // 近战攻击
+            this.performAttack(time);
         }
     }
 
-    private chase(delta: number): void {
-        const body = this.body as Phaser.Physics.Arcade.Body;
-        const direction = new Phaser.Math.Vector2(
-            this.player.x - this.x,
-            this.player.y - this.y
-        );
-        direction.normalize().scale(this.stats.moveSpeed);
-        body.setVelocity(direction.x, direction.y);
+    private performAttack(time: number): void {
+        if (time - this.lastAttackTime < 1000 / this.stats.attackSpeed) return;
+        
+        this.lastAttackTime = time;
+        this.player.takeDamage(this.stats.attack);
     }
+}
+```
 
-    private attack(time: number): void {
-        const attackInterval = 1000 / this.stats.attackSpeed;
+### 4. 技能选择场景 (SkillSelectScene.ts)
+```typescript
+export default class SkillSelectScene extends Phaser.Scene {
+    private choices: Skill[];
+    private player: Player;
 
-        if (time - this.state.lastAttackTime < attackInterval) {
-            return;
-        }
+    create(data: { choices: Skill[], player: Player }): void {
+        this.choices = data.choices;
+        this.player = data.player;
 
-        this.state.lastAttackTime = time;
-        this.state.isAttacking = true;
+        // 半透明背景
+        this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.8);
 
-        // 播放攻击动画
-        this.anims.play(`enemy_${this.getType()}_attack`);
+        // 标题
+        this.add.text(640, 100, '选择技能升级', { fontSize: '32px', color: '#00ffff' })
+            .setOrigin(0.5);
 
-        // 对玩家造成伤害
-        const playerStats = this.player.getStats();
-        const damage = this.calculateDamage(this.stats, playerStats);
-        this.player.takeDamage(damage);
-
-        // 攻击动画结束后恢复
-        this.once('animationcomplete', () => {
-            this.state.isAttacking = false;
+        // 3个技能选项
+        this.choices.forEach((skill, index) => {
+            const x = 240 + index * 400;
+            this.createSkillOption(skill, x, 360);
         });
     }
 
-    private calculateDamage(attacker: CombatStats, defender: CombatStats): number {
-        let damage = attacker.attack - defender.defense * 0.5;
-        damage = Math.max(damage, 10);
+    private createSkillOption(skill: Skill, x: number, y: number): void {
+        const owned = this.player.ownedSkills.get(skill.id);
+        const isUpgrade = owned !== undefined;
+        const level = owned?.level || 0;
 
-        if (Math.random() < attacker.critRate) {
-            damage *= attacker.critDamage;
+        // 背景卡片
+        const card = this.add.rectangle(x, y, 300, 400, 0x1a1a2e)
+            .setStrokeStyle(2, 0x00ffff)
+            .setInteractive({ useHandCursor: true });
+
+        // 技能图标
+        this.add.rectangle(x, y - 100, 80, 80, 0x00ffff);
+
+        // 技能名称
+        this.add.text(x, y, skill.name, { fontSize: '20px', color: '#ffffff' })
+            .setOrigin(0.5);
+
+        // 描述
+        this.add.text(x, y + 50, skill.description, { fontSize: '14px', color: '#888888' })
+            .setOrigin(0.5);
+
+        // 等级显示
+        if (isUpgrade) {
+            this.add.text(x, y + 100, `等级 ${level} → ${level + 1}`, { fontSize: '16px', color: '#ffff00' })
+                .setOrigin(0.5);
         }
 
-        return Math.floor(damage);
-    }
-
-    private getType(): 'common' | 'elite' | 'boss' {
-        if (this.stats.maxHp === 50) return 'common';
-        if (this.stats.maxHp === 150) return 'elite';
-        return 'boss';
-    }
-
-    public takeDamage(damage: number): void {
-        this.stats.hp -= damage;
-        this.stats.hp = Math.max(this.stats.hp, 0);
-
-        // 播放受伤动画
-        this.setTint(0xff0000);
-        this.scene.time.delayedCall(100, () => {
-            this.clearTint();
-        });
-
-        if (this.stats.hp <= 0) {
-            this.die();
-        }
-    }
-
-    private die(): void {
-        // 掉落物品
-        this.scene.events.emit('enemyDefeated', this);
-
-        // 播放死亡动画
-        this.anims.play(`enemy_${this.getType()}_death`);
-
-        // 动画结束后销毁
-        this.once('animationcomplete', () => {
-            this.destroy();
+        // 点击选择
+        card.on('pointerdown', () => {
+            this.selectSkill(skill);
         });
     }
 
-    public getStats(): CombatStats {
-        return this.stats;
+    private selectSkill(skill: Skill): void {
+        this.player.learnSkill(skill);
+        this.scene.stop();
+        this.scene.resume('GameScene');
     }
 }
 ```
 
 ---
 
-## MVP 验收标准
+## 正式版开发计划（后续）
 
-### 功能验收
-- [ ] 玩家可以移动和攻击
-- [ ] 敌人会巡逻、追击、攻击
-- [ ] 玩家可以使用3个技能
-- [ ] 物品可以掉落、装备、使用
-- [ ] 可以进行基础合成（2灰→1蓝）
-- [ ] 可以击败精英怪并进入传送门
-- [ ] 游戏有明确的开始和结束流程
+### 第1阶段：核心机制完善
+- [ ] 时间回溯机制
+- [ ] 存档/读档系统
+- [ ] 随机事件系统
+- [ ] 音效和背景音乐
 
-### 性能验收
-- [ ] 帧率稳定在60fps
-- [ ] 加载时间 < 5秒
-- [ ] 内存占用 < 500MB
+### 第2阶段：内容扩展
+- [ ] 多职业系统（4个职业）
+- [ ] 职业专属技能树
+- [ ] 更多武器和装备
+- [ ] 更多敌人类型
 
-### 体验验收
-- [ ] 操作流畅，无明显卡顿
-- [ ] 视觉反馈清晰（受伤、暴击、死亡）
-- [ ] 音效和特效配合得当
-- [ ] UI简洁易懂
+### 第3阶段：联机功能
+- [ ] Socket.io 后端搭建
+- [ ] 玩家匹配系统
+- [ ] 状态同步
+- [ ] 联机专属内容
 
----
-
-## 下一步扩展方向
-
-### 短期扩展（MVP后）
-- 时间回溯机制
-- 随机事件系统
-- 多职业系统（数据黑客、生化改造者、暗影刺客）
-- 联机功能
-
-### 长期扩展
-- 更多关卡和BOSS
-- 更复杂的合成系统（隐藏技能解锁）
-- 技能树系统
-- 成就系统
-- 排行榜和PVP
+### 第4阶段：打磨上线
+- [ ] 数值平衡调整
+- [ ] 性能优化
+- [ ] 用户体验优化
+- [ ] 部署上线
 
 ---
 
-这份MVP开发计划提供了完整的技术架构、核心系统设计和代码示例。你可以基于这个框架直接开始开发，预计7周可以完成一个可玩的MVP版本。
+## 数值平衡参考表
+
+### 玩家成长曲线
+| 等级 | 生命值 | 攻击力 | 经验需求 |
+|------|--------|--------|---------|
+| 1 | 100 | 10 | 0 |
+| 5 | 140 | 18 | 500 |
+| 10 | 200 | 30 | 2000 |
+| 15 | 260 | 42 | 5000 |
+| 20 | 320 | 54 | 10000 |
+
+### 武器属性范围
+| 稀有度 | 攻击力 | 攻速 | 暴击率 | 暴击伤害 |
+|--------|--------|------|--------|---------|
+| 普通 | 6-10 | 1.0-2.0 | 5-12% | 150-180% |
+| 稀有 | 10-20 | 0.8-2.5 | 6-18% | 160-220% |
+| 史诗 | 18-35 | 0.6-2.0 | 8-20% | 200-300% |
+| 传说 | 20-40 | 1.6-3.5 | 22-30% | 280-400% |
+
+### 敌人属性
+| 类型 | 生命值 | 攻击力 | 移动速度 | 经验值 |
+|------|--------|--------|---------|--------|
+| 普通 | 30-50 | 10-15 | 80-100 | 10-20 |
+| 精英 | 100-150 | 25-35 | 100-120 | 50-100 |
+| BOSS | 500-1000 | 50-80 | 60-80 | 200-500 |
+
+### 技能冷却参考
+| 技能类型 | 冷却范围 | 伤害倍率 | 范围 |
+|---------|---------|---------|------|
+| 快速 | 2-3秒 | 110-150% | 小 |
+| 中等 | 4-6秒 | 160-200% | 中 |
+| 强力 | 7-10秒 | 220-280% | 大 |
+| 终极 | 12-15秒 | 300%+ | 全屏 |
