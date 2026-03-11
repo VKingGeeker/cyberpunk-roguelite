@@ -102,6 +102,7 @@ export default class GameScene extends Phaser.Scene {
         this.data.set('gameTime', 0);
 
         // 初始化时间回溯系统
+        this.initTimeRewindSystem();
     }
 
     /**
