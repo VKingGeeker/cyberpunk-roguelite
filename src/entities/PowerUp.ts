@@ -288,6 +288,12 @@ export default class PowerUp extends Phaser.GameObjects.Sprite {
      * 销毁道具
      */
     public collect(): void {
+        // 立即禁用物理体，防止再次触发碰撞
+        const body = this.body as Phaser.Physics.Arcade.Body;
+        if (body) {
+            body.enable = false;
+        }
+
         if (this.pulseTween) {
             this.pulseTween.stop();
         }

@@ -93,6 +93,12 @@ export default class TimeFragment extends Phaser.GameObjects.Sprite {
         if (this.collected) return;
         this.collected = true;
 
+        // 立即禁用物理体，防止再次触发碰撞
+        const body = this.body as Phaser.Physics.Arcade.Body;
+        if (body) {
+            body.enable = false;
+        }
+
         // 播放收集动画
         this.scene.tweens.add({
             targets: [this, this.glow],
