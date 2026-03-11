@@ -133,16 +133,16 @@ export default class UIScene extends Phaser.Scene {
      * 创建武器栏 - 显示当前武器和武器槽位
      */
     private createWeaponBar(): void {
-        const x = this.cameras.main.width - 180;
+        const x = this.cameras.main.width - 190;
         const y = this.cameras.main.height - 80;
         const size = 50;
 
-        // 武器栏背景
+        // 武器栏背景 - 调整宽度以容纳3个槽位
         const bg = this.add.graphics();
         bg.fillStyle(0x0a0a1a, 0.9);
-        bg.fillRoundedRect(x - 10, y - size/2 - 20, 170, size + 50, 8);
+        bg.fillRoundedRect(x - 10, y - size/2 - 20, 190, size + 50, 8);
         bg.lineStyle(2, 0xff00ff, 0.5);
-        bg.strokeRoundedRect(x - 10, y - size/2 - 20, 170, size + 50, 8);
+        bg.strokeRoundedRect(x - 10, y - size/2 - 20, 190, size + 50, 8);
 
         // 标题
         const title = this.add.text(x + 75, y - size/2 - 15, 'WEAPON', {
@@ -163,7 +163,7 @@ export default class UIScene extends Phaser.Scene {
     public updateWeaponDisplay(): void {
         if (!this.player) return;
 
-        const x = this.cameras.main.width - 180;
+        const x = this.cameras.main.width - 190;
         const y = this.cameras.main.height - 80;
         const size = 50;
 

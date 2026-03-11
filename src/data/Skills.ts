@@ -371,6 +371,70 @@ export const SKILL_UPGRADE_DATA: Record<string, { damageBonus: number; cooldownR
         { damageBonus: 0, cooldownReduction: 2, rangeBonus: 0 },
         { damageBonus: 0, cooldownReduction: 2, rangeBonus: 0 },
         { damageBonus: 0, cooldownReduction: 3, rangeBonus: 0 }
+    ],
+    // 新增技能升级数据
+    'skill_plasma_orb': [
+        { damageBonus: 0.2, cooldownReduction: 0, rangeBonus: 10 },
+        { damageBonus: 0.3, cooldownReduction: 0.2, rangeBonus: 15 },
+        { damageBonus: 0.4, cooldownReduction: 0.3, rangeBonus: 20 },
+        { damageBonus: 0.5, cooldownReduction: 0.5, rangeBonus: 25 },
+        { damageBonus: 0.6, cooldownReduction: 0.5, rangeBonus: 30 }
+    ],
+    'skill_energy_nova': [
+        { damageBonus: 0.15, cooldownReduction: 0.5, rangeBonus: 15 },
+        { damageBonus: 0.25, cooldownReduction: 0.5, rangeBonus: 20 },
+        { damageBonus: 0.35, cooldownReduction: 1, rangeBonus: 25 },
+        { damageBonus: 0.45, cooldownReduction: 1, rangeBonus: 30 },
+        { damageBonus: 0.55, cooldownReduction: 1.5, rangeBonus: 40 }
+    ],
+    'skill_sonic_boom': [
+        { damageBonus: 0.2, cooldownReduction: 0, rangeBonus: 20 },
+        { damageBonus: 0.3, cooldownReduction: 0.2, rangeBonus: 30 },
+        { damageBonus: 0.4, cooldownReduction: 0.3, rangeBonus: 40 },
+        { damageBonus: 0.5, cooldownReduction: 0.5, rangeBonus: 50 },
+        { damageBonus: 0.6, cooldownReduction: 0.5, rangeBonus: 60 }
+    ],
+    'skill_flame_wave': [
+        { damageBonus: 0.15, cooldownReduction: 0, rangeBonus: 10 },
+        { damageBonus: 0.25, cooldownReduction: 0.2, rangeBonus: 15 },
+        { damageBonus: 0.35, cooldownReduction: 0.3, rangeBonus: 20 },
+        { damageBonus: 0.45, cooldownReduction: 0.5, rangeBonus: 25 },
+        { damageBonus: 0.55, cooldownReduction: 0.5, rangeBonus: 30 }
+    ],
+    'skill_void_rift': [
+        { damageBonus: 0.1, cooldownReduction: 0.5, rangeBonus: 10 },
+        { damageBonus: 0.2, cooldownReduction: 0.5, rangeBonus: 15 },
+        { damageBonus: 0.3, cooldownReduction: 1, rangeBonus: 20 },
+        { damageBonus: 0.4, cooldownReduction: 1, rangeBonus: 25 },
+        { damageBonus: 0.5, cooldownReduction: 1.5, rangeBonus: 30 }
+    ],
+    'skill_time_warp': [
+        { damageBonus: 0, cooldownReduction: 1, rangeBonus: 15 },
+        { damageBonus: 0, cooldownReduction: 1, rangeBonus: 20 },
+        { damageBonus: 0, cooldownReduction: 2, rangeBonus: 25 },
+        { damageBonus: 0, cooldownReduction: 2, rangeBonus: 30 },
+        { damageBonus: 0, cooldownReduction: 3, rangeBonus: 40 }
+    ],
+    'skill_nanite_swarm': [
+        { damageBonus: 0.1, cooldownReduction: 1, rangeBonus: 0 },
+        { damageBonus: 0.15, cooldownReduction: 1, rangeBonus: 0 },
+        { damageBonus: 0.2, cooldownReduction: 2, rangeBonus: 0 },
+        { damageBonus: 0.25, cooldownReduction: 2, rangeBonus: 0 },
+        { damageBonus: 0.3, cooldownReduction: 3, rangeBonus: 0 }
+    ],
+    'skill_energy_drain': [
+        { damageBonus: 0.15, cooldownReduction: 0, rangeBonus: 10 },
+        { damageBonus: 0.25, cooldownReduction: 0.2, rangeBonus: 15 },
+        { damageBonus: 0.35, cooldownReduction: 0.3, rangeBonus: 20 },
+        { damageBonus: 0.45, cooldownReduction: 0.5, rangeBonus: 25 },
+        { damageBonus: 0.55, cooldownReduction: 0.5, rangeBonus: 30 }
+    ],
+    'skill_ice_shard': [
+        { damageBonus: 0.15, cooldownReduction: 0, rangeBonus: 15 },
+        { damageBonus: 0.25, cooldownReduction: 0.2, rangeBonus: 20 },
+        { damageBonus: 0.35, cooldownReduction: 0.3, rangeBonus: 25 },
+        { damageBonus: 0.45, cooldownReduction: 0.5, rangeBonus: 30 },
+        { damageBonus: 0.55, cooldownReduction: 0.5, rangeBonus: 40 }
     ]
 };
 

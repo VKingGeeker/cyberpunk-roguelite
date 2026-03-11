@@ -53,17 +53,9 @@ export default class GameScene extends Phaser.Scene {
         // 生成初始道具
         this.spawnInitialPowerUps();
 
-        // 检查是否需要教程
-        const needTutorial = !TutorialSystem.isCompleted();
-        
-        if (needTutorial) {
-            // 新玩家：延迟敌人生成到教程完成后
-            console.log('[GameScene] 新玩家，等待教程完成后再生成敌人');
-        } else {
-            // 老玩家：直接生成敌人
-            this.spawnInitialEnemies();
-            this.startEnemySpawner();
-        }
+        // 生成敌人和启动敌人生成器
+        this.spawnInitialEnemies();
+        this.startEnemySpawner();
 
         // 启动道具生成定时器
         this.startPowerUpSpawner();
@@ -1088,17 +1080,9 @@ export default class GameScene extends Phaser.Scene {
             }
         });
         
-        // 监听教程暂停事件
-        this.events.on('tutorial-pause', (paused: boolean) => {
-            if (paused) {
-                // 教程暂停时，暂停敌人生成器
-                if (this.spawnTimer) this.spawnTimer.paused = true;
-                if (this.powerUpTimer) this.powerUpTimer.paused = true;
-            } else {
-                // 教程恢复时，恢复敌人生成器
-                if (this.spawnTimer) this.spawnTimer.paused = false;
-                if (this.powerUpTimer) this.powerUpTimer.paused = false;
-            }
+        // 监听教程完成事件
+        this.events.on('tutorial-complete', () => {
+            console.log('[Tutorial] 教程完成事件');
         });
         
         // 延迟启动教程，确保场景完全加载
@@ -1108,17 +1092,7 @@ export default class GameScene extends Phaser.Scene {
                     console.log(`[Tutorial] 步骤 ${step + 1}/${total}`);
                 },
                 () => {
-                    console.log('[Tutorial] 教程完成');
-                    // 确保生成器恢复
-                    if (this.spawnTimer) this.spawnTimer.paused = false;
-                    if (this.powerUpTimer) this.powerUpTimer.paused = false;
-                    
-                    // 教程完成后生成敌人（如果是新玩家）
-                    if (this.enemies.length === 0) {
-                        console.log('[GameScene] 教程完成，开始生成敌人');
-                        this.spawnInitialEnemies();
-                        this.startEnemySpawner();
-                    }
+                    console.log('[Tutorial] 教程完成回调');
                 }
             );
         });
