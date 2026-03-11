@@ -1,6 +1,7 @@
 /**
  * 教程引导系统
  * 为新玩家提供游戏操作引导
+ * 教程期间会暂停游戏，需要玩家操作的步骤会短暂解除暂停
  */
 
 import Phaser from 'phaser';
@@ -11,7 +12,7 @@ export interface TutorialStep {
     description: string;
     highlight?: { x: number; y: number; width: number; height: number };
     arrow?: { x: number; y: number; direction: 'up' | 'down' | 'left' | 'right' };
-    waitFor?: 'click' | 'key' | 'action';
+    waitFor?: 'click' | 'action';
     actionKey?: string;
 }
 
@@ -75,12 +76,15 @@ export class TutorialSystem {
     private scene: Phaser.Scene;
     private currentStep: number = 0;
     private isActive: boolean = false;
+    private isPaused: boolean = false;
     private container: Phaser.GameObjects.Container | null = null;
     private overlay: Phaser.GameObjects.Rectangle | null = null;
     private highlight: Phaser.GameObjects.Rectangle | null = null;
     private arrow: Phaser.GameObjects.Graphics | null = null;
     private onProgress: ((step: number, total: number) => void) | null = null;
     private onComplete: (() => void) | null = null;
+    private waitingForAction: boolean = false;
+    private skipButton: Phaser.GameObjects.Text | null = null;
 
     // 存储教程完成状态
     private static readonly TUTORIAL_KEY = 'cyberpunk_tutorial_completed';
@@ -122,11 +126,37 @@ export class TutorialSystem {
 
         this.currentStep = 0;
         this.isActive = true;
+        this.isPaused = true;
         this.onProgress = onProgress;
         this.onComplete = onComplete;
 
+        // 暂停游戏
+        this.pauseGame();
+
         this.showStep(this.currentStep);
-        console.log('[Tutorial] 教程开始');
+        console.log('[Tutorial] 教程开始，游戏已暂停');
+    }
+
+    /**
+     * 暂停游戏（只暂停物理，不暂停时间）
+     */
+    private pauseGame(): void {
+        this.isPaused = true;
+        this.scene.physics.pause();
+        
+        // 通知场景暂停（用于暂停敌人生成器等）
+        this.scene.events.emit('tutorial-pause', true);
+    }
+
+    /**
+     * 恢复游戏
+     */
+    private resumeGame(): void {
+        this.isPaused = false;
+        this.scene.physics.resume();
+        
+        // 通知场景恢复
+        this.scene.events.emit('tutorial-pause', false);
     }
 
     /**
@@ -139,6 +169,7 @@ export class TutorialSystem {
         }
 
         const step = TUTORIAL_STEPS[index];
+        this.waitingForAction = step.waitFor === 'action';
 
         // 清除之前的UI
         this.clearUI();
@@ -177,7 +208,7 @@ export class TutorialSystem {
 
         // 创建对话框
         const dialogWidth = 500;
-        const dialogHeight = 180;
+        const dialogHeight = 200;
         const dialogX = this.scene.cameras.main.scrollX + 640;
         const dialogY = this.scene.cameras.main.scrollY + 550;
 
@@ -186,7 +217,7 @@ export class TutorialSystem {
         this.container.add(dialog);
 
         // 标题
-        const title = this.scene.add.text(dialogX, dialogY - 60, step.title, {
+        const title = this.scene.add.text(dialogX, dialogY - 70, step.title, {
             fontSize: '24px',
             color: '#00ffff',
             fontFamily: 'Courier New, monospace',
@@ -195,7 +226,7 @@ export class TutorialSystem {
         this.container.add(title);
 
         // 描述
-        const desc = this.scene.add.text(dialogX, dialogY, step.description, {
+        const desc = this.scene.add.text(dialogX, dialogY - 10, step.description, {
             fontSize: '16px',
             color: '#ffffff',
             fontFamily: 'Courier New, monospace',
@@ -205,7 +236,7 @@ export class TutorialSystem {
         this.container.add(desc);
 
         // 步骤指示
-        const stepText = this.scene.add.text(dialogX, dialogY + 70, 
+        const stepText = this.scene.add.text(dialogX, dialogY + 50, 
             `${index + 1} / ${TUTORIAL_STEPS.length}`, {
             fontSize: '14px',
             color: '#666666',
@@ -217,32 +248,90 @@ export class TutorialSystem {
         let hint = '';
         switch (step.waitFor) {
             case 'click':
-                hint = '点击继续';
-                break;
-            case 'key':
-                hint = `按下 ${step.actionKey} 继续`;
+                hint = '点击屏幕继续';
                 break;
             case 'action':
-                hint = '完成操作后继续';
+                hint = '完成操作后自动继续';
                 break;
         }
         
-        const hintText = this.scene.add.text(dialogX + 180, dialogY + 70, hint, {
+        const hintText = this.scene.add.text(dialogX + 150, dialogY + 50, hint, {
             fontSize: '14px',
             color: '#ffff00',
             fontFamily: 'Courier New, monospace'
         }).setOrigin(0.5);
         this.container.add(hintText);
 
+        // 跳过按钮
+        this.skipButton = this.scene.add.text(dialogX + 200, dialogY - 80, '[跳过教程]', {
+            fontSize: '12px',
+            color: '#888888',
+            fontFamily: 'Courier New, monospace',
+            backgroundColor: '#1a1a2e',
+            padding: { x: 8, y: 4 }
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        
+        this.skipButton.on('pointerover', () => {
+            this.skipButton?.setColor('#ff6600');
+        });
+        this.skipButton.on('pointerout', () => {
+            this.skipButton?.setColor('#888888');
+        });
+        this.skipButton.on('pointerdown', () => {
+            this.skip();
+        });
+        this.container.add(this.skipButton);
+
         // 添加交互
         if (step.waitFor === 'click') {
             this.overlay.setInteractive();
-            this.overlay.on('pointerdown', () => this.nextStep());
+            this.overlay.on('pointerdown', () => {
+                this.nextStep();
+            });
+        } else if (step.waitFor === 'action') {
+            // 需要玩家操作的步骤：显示提示后短暂延迟，然后恢复游戏让玩家操作
+            this.overlay.setAlpha(0.3); // 降低遮罩透明度，让玩家能看到游戏
+            
+            // 延迟2秒后隐藏对话框，恢复游戏让玩家操作
+            this.scene.time.delayedCall(2000, () => {
+                if (this.isActive && this.waitingForAction) {
+                    this.hideDialog();
+                    this.resumeGame();
+                    console.log('[Tutorial] 等待玩家操作:', step.actionKey);
+                }
+            });
         }
 
         // 通知进度
         if (this.onProgress) {
             this.onProgress(index, TUTORIAL_STEPS.length);
+        }
+    }
+
+    /**
+     * 隐藏对话框（保留跳过按钮）
+     */
+    private hideDialog(): void {
+        if (this.container) {
+            // 只保留跳过按钮
+            const children = this.container.getAll();
+            for (const child of children) {
+                if (child !== this.skipButton) {
+                    (child as Phaser.GameObjects.GameObject & { setVisible: (v: boolean) => void }).setVisible(false);
+                }
+            }
+        }
+    }
+
+    /**
+     * 显示对话框
+     */
+    private showDialog(): void {
+        if (this.container) {
+            const children = this.container.getAll();
+            for (const child of children) {
+                (child as Phaser.GameObjects.GameObject & { setVisible: (v: boolean) => void }).setVisible(true);
+            }
         }
     }
 
@@ -288,6 +377,11 @@ export class TutorialSystem {
     public nextStep(): void {
         if (!this.isActive) return;
 
+        // 先暂停游戏
+        if (!this.isPaused) {
+            this.pauseGame();
+        }
+
         this.currentStep++;
         this.showStep(this.currentStep);
     }
@@ -296,13 +390,18 @@ export class TutorialSystem {
      * 通知动作完成（用于 waitFor: 'action' 的步骤）
      */
     public notifyAction(action: string): void {
-        if (!this.isActive) return;
+        if (!this.isActive || !this.waitingForAction) return;
 
         const step = TUTORIAL_STEPS[this.currentStep];
         if (step && step.waitFor === 'action') {
             if (!step.actionKey || action === step.actionKey) {
-                // 延迟一点再进入下一步，让玩家看到效果
-                this.scene.time.delayedCall(500, () => {
+                this.waitingForAction = false;
+                
+                // 先暂停游戏
+                this.pauseGame();
+                
+                // 显示下一步
+                this.scene.time.delayedCall(300, () => {
                     this.nextStep();
                 });
             }
@@ -313,6 +412,10 @@ export class TutorialSystem {
      * 跳过教程
      */
     public skip(): void {
+        // 先恢复游戏
+        if (this.isPaused) {
+            this.resumeGame();
+        }
         this.complete();
     }
 
@@ -321,8 +424,14 @@ export class TutorialSystem {
      */
     private complete(): void {
         this.isActive = false;
+        this.waitingForAction = false;
         this.clearUI();
         TutorialSystem.markCompleted();
+
+        // 确保游戏恢复
+        if (this.isPaused) {
+            this.resumeGame();
+        }
 
         console.log('[Tutorial] 教程完成');
         
@@ -342,6 +451,7 @@ export class TutorialSystem {
         this.overlay = null;
         this.highlight = null;
         this.arrow = null;
+        this.skipButton = null;
     }
 
     /**
@@ -349,6 +459,13 @@ export class TutorialSystem {
      */
     public isTutorialActive(): boolean {
         return this.isActive;
+    }
+
+    /**
+     * 检查游戏是否暂停
+     */
+    public isGamePaused(): boolean {
+        return this.isPaused;
     }
 
     /**
