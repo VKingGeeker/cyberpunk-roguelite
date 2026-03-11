@@ -7,21 +7,25 @@ import Phaser from 'phaser';
 import Player from '../entities/Player';
 import Enemy from '../entities/Enemy';
 import PowerUp, { PowerUpType, PowerUpRarity } from '../entities/PowerUp';
+import TimeFragment from '../entities/TimeFragment';
 import { GAME_CONFIG } from '../core/Config';
 import { EnemyType } from '../core/Types';
 import { getEnemyTemplate, rollLoot } from '../data/Enemies';
 import { TutorialSystem } from '../systems/TutorialSystem';
+import { TimeRewindSystem, TIME_REWIND_CONFIG } from '../systems/TimeRewindSystem';
 
 export default class GameScene extends Phaser.Scene {
     private player!: Player;
     private enemies: Enemy[] = [];
     private powerUps: PowerUp[] = [];
+    private timeFragments: TimeFragment[] = [];
     private timeElapsed: number = 0;
     private levelTime: number = GAME_CONFIG.level.duration;
     private spawnTimer!: Phaser.Time.TimerEvent;
     private powerUpTimer!: Phaser.Time.TimerEvent;
     private isGameOver: boolean = false;
     private tutorialSystem!: TutorialSystem;
+    private timeRewindSystem!: TimeRewindSystem;
 
     constructor() {
         super({ key: 'GameScene', active: false });
@@ -96,8 +100,19 @@ export default class GameScene extends Phaser.Scene {
             }
         }, this);
 
+        // 添加键盘监听 - 时间回溯功能
+        this.input.keyboard!.on('keydown-T', () => {
+            this.openTimeRewindScene();
+        }, this);
+
+        // 监听时间回溯事件
+        this.events.on('time-rewind', this.onTimeRewind, this);
+
         // 初始化游戏时间
         this.data.set('gameTime', 0);
+
+        // 初始化时间回溯系统
+        this.initTimeRewindSystem();
 
         // 初始化教程系统
         this.initTutorial();
@@ -567,6 +582,9 @@ export default class GameScene extends Phaser.Scene {
 
             // 击败敌人时有概率掉落道具
             this.tryDropPowerUp(enemy.x, enemy.y, enemyType);
+            
+            // 击败敌人时有概率掉落时空碎片
+            this.spawnTimeFragment(enemy.x, enemy.y);
         }
     }
 
@@ -878,6 +896,181 @@ export default class GameScene extends Phaser.Scene {
             duration: 2000,
             onComplete: () => msg.destroy()
         });
+    }
+
+    // ========== 时间回溯系统相关方法 ==========
+
+    /**
+     * 初始化时间回溯系统
+     */
+    private initTimeRewindSystem(): void {
+        this.timeRewindSystem = new TimeRewindSystem(this);
+        
+        // 设置回调
+        this.timeRewindSystem.setCallbacks(
+            (snapshot) => {
+                console.log(`[TimeRewind] 快照创建: ${snapshot.metadata.label}`);
+                this.showTimeRewindMessage(`时间快照已保存`, '#00ffff');
+            },
+            (snapshot) => {
+                console.log(`[TimeRewind] 回溯到: ${snapshot.metadata.label}`);
+            },
+            (count) => {
+                // 通知UI更新时空碎片显示
+                this.events.emit('time-fragments-changed', count);
+            }
+        );
+
+        // 启动自动快照
+        this.timeRewindSystem.startAutoSnapshot(
+            () => this.getPlayerSnapshotData(),
+            () => this.getWorldSnapshotData()
+        );
+    }
+
+    /**
+     * 获取玩家快照数据
+     */
+    private getPlayerSnapshotData() {
+        const stats = this.player.getStats();
+        const weapons = this.player.getOwnedWeapons().map((w: any) => w.id);
+        const skills = this.player.getOwnedSkillIds();
+        
+        return {
+            x: this.player.x,
+            y: this.player.y,
+            hp: stats.hp,
+            maxHp: stats.maxHp,
+            level: this.player.getLevel(),
+            experience: this.player.getExperience(),
+            maxExperience: this.player.getMaxExperience(),
+            killCount: this.player.getKillCount(),
+            weapons,
+            activeWeaponSlot: this.player.getActiveWeaponSlot(),
+            skills,
+            stats: {
+                attack: stats.attack,
+                defense: stats.defense,
+                attackSpeed: stats.attackSpeed,
+                critRate: stats.critRate,
+                critDamage: stats.critDamage,
+                moveSpeed: stats.moveSpeed
+            }
+        };
+    }
+
+    /**
+     * 获取世界快照数据
+     */
+    private getWorldSnapshotData() {
+        return {
+            enemiesDefeated: this.player.getKillCount(),
+            gameTime: this.data.get('gameTime') || 0
+        };
+    }
+
+    /**
+     * 打开时间回溯界面
+     */
+    private openTimeRewindScene(): void {
+        if (this.isGameOver) return;
+        if (this.tutorialSystem?.isTutorialActive()) return;
+
+        this.physics.pause();
+        
+        this.scene.launch('TimeRewindScene', {
+            player: this.player,
+            timeRewindSystem: this.timeRewindSystem
+        });
+    }
+
+    /**
+     * 时间回溯回调
+     */
+    private onTimeRewind(data: { snapshot: any }): void {
+        const snapshot = data.snapshot;
+        if (!snapshot) return;
+
+        console.log('[GameScene] 应用时间回溯数据');
+        
+        // 恢复玩家状态
+        this.player.loadSaveData({
+            version: '1.0.0',
+            timestamp: snapshot.timestamp,
+            player: snapshot.playerData,
+            stats: snapshot.playerData.stats,
+            gameTime: snapshot.worldData.gameTime
+        });
+
+        // 设置玩家位置
+        this.player.setPosition(snapshot.playerData.x, snapshot.playerData.y);
+
+        // 清理现有敌人和道具
+        this.enemies.forEach(e => e.destroy());
+        this.enemies = [];
+        this.powerUps.forEach(p => p.destroy());
+        this.powerUps = [];
+        this.timeFragments.forEach(f => f.destroy());
+        this.timeFragments = [];
+
+        // 恢复游戏时间
+        this.data.set('gameTime', snapshot.worldData.gameTime);
+
+        // 重新生成敌人
+        this.spawnInitialEnemies();
+
+        // 恢复游戏
+        this.physics.resume();
+
+        this.showTimeRewindMessage(`时间回溯成功！`, '#00ff00');
+    }
+
+    /**
+     * 生成时空碎片
+     */
+    private spawnTimeFragment(x: number, y: number): void {
+        if (Math.random() > TIME_REWIND_CONFIG.fragmentDropRate) return;
+
+        const fragment = new TimeFragment(this, x, y, TIME_REWIND_CONFIG.fragmentDropAmount);
+        this.timeFragments.push(fragment);
+        
+        // 设置与玩家的碰撞检测
+        this.physics.add.overlap(this.player, fragment, () => {
+            if (!fragment.isCollected()) {
+                fragment.collect();
+                this.timeRewindSystem.addTimeFragments(fragment.getValue());
+                this.timeFragments = this.timeFragments.filter(f => f !== fragment);
+            }
+        });
+    }
+
+    /**
+     * 显示时间回溯消息
+     */
+    private showTimeRewindMessage(text: string, color: string): void {
+        const msg = this.add.text(this.cameras.main.scrollX + 640, 
+            this.cameras.main.scrollY + 50, text, {
+            fontSize: '20px',
+            color: color,
+            fontFamily: 'Courier New, monospace',
+            backgroundColor: '#000000',
+            padding: { x: 15, y: 8 }
+        }).setOrigin(0.5).setDepth(2000);
+
+        this.tweens.add({
+            targets: msg,
+            alpha: 0,
+            y: msg.y - 40,
+            duration: 2000,
+            onComplete: () => msg.destroy()
+        });
+    }
+
+    /**
+     * 获取时间回溯系统
+     */
+    public getTimeRewindSystem(): TimeRewindSystem {
+        return this.timeRewindSystem;
     }
 
     // ========== 教程系统相关方法 ==========

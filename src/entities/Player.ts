@@ -1346,6 +1346,20 @@ export default class Player extends Phaser.GameObjects.Sprite {
     }
 
     /**
+     * 获取当前经验值
+     */
+    public getExperience(): number {
+        return this.experience;
+    }
+
+    /**
+     * 获取升级所需经验值
+     */
+    public getMaxExperience(): number {
+        return this.maxExperience;
+    }
+
+    /**
      * 是否死亡
      */
     public getIsDead(): boolean {
@@ -1462,6 +1476,20 @@ export default class Player extends Phaser.GameObjects.Sprite {
      */
     public getOwnedWeapons(): Weapon[] {
         return this.ownedWeapons;
+    }
+
+    /**
+     * 获取当前武器槽位
+     */
+    public getActiveWeaponSlot(): number {
+        return this.activeWeaponSlot;
+    }
+
+    /**
+     * 获取已拥有技能列表
+     */
+    public getOwnedSkillIds(): string[] {
+        return Array.from(this.ownedSkills.keys());
     }
 
     /**

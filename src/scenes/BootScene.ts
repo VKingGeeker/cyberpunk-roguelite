@@ -171,6 +171,9 @@ export default class BootScene extends Phaser.Scene {
         // 创建升级道具纹理 - 数据芯片风格
         this.createCyberPowerUpTextures();
 
+        // 创建时空碎片纹理
+        this.createTimeFragmentTexture();
+
         // 创建玩家动画
         this.createPlayerAnimations();
     }
@@ -1112,6 +1115,73 @@ export default class BootScene extends Phaser.Scene {
         graphics.strokePath();
 
         graphics.generateTexture(key, size, size);
+        graphics.destroy();
+    }
+
+    /**
+     * 创建时空碎片纹理
+     */
+    private createTimeFragmentTexture(): void {
+        const graphics = this.add.graphics();
+        const size = 32;
+        const center = size / 2;
+
+        // 外层光晕
+        graphics.fillStyle(0x00ffff, 0.15);
+        graphics.fillCircle(center, center, 14);
+
+        // 内层光晕
+        graphics.fillStyle(0x00ffff, 0.25);
+        graphics.fillCircle(center, center, 10);
+
+        // 核心 - 菱形晶体
+        graphics.fillStyle(0x00ffff, 0.9);
+        graphics.beginPath();
+        graphics.moveTo(center, center - 8);
+        graphics.lineTo(center + 6, center);
+        graphics.lineTo(center, center + 8);
+        graphics.lineTo(center - 6, center);
+        graphics.closePath();
+        graphics.fillPath();
+
+        // 内部高光
+        graphics.fillStyle(0xffffff, 0.8);
+        graphics.beginPath();
+        graphics.moveTo(center, center - 5);
+        graphics.lineTo(center + 3, center);
+        graphics.lineTo(center, center + 2);
+        graphics.lineTo(center - 3, center);
+        graphics.closePath();
+        graphics.fillPath();
+
+        // 边框
+        graphics.lineStyle(2, 0x00ffff, 1);
+        graphics.beginPath();
+        graphics.moveTo(center, center - 8);
+        graphics.lineTo(center + 6, center);
+        graphics.lineTo(center, center + 8);
+        graphics.lineTo(center - 6, center);
+        graphics.closePath();
+        graphics.strokePath();
+
+        // 时针装饰（代表时间）
+        graphics.lineStyle(1.5, 0xff00ff, 0.8);
+        graphics.lineBetween(center, center, center + 4, center - 3);
+        graphics.lineBetween(center, center, center + 2, center + 3);
+
+        // 中心点
+        graphics.fillStyle(0xffffff, 1);
+        graphics.fillCircle(center, center, 1.5);
+
+        // 周围粒子
+        graphics.fillStyle(0x00ffff, 0.6);
+        graphics.fillCircle(center - 10, center - 5, 1.5);
+        graphics.fillCircle(center + 10, center + 5, 1.5);
+        graphics.fillStyle(0xff00ff, 0.6);
+        graphics.fillCircle(center + 8, center - 8, 1.5);
+        graphics.fillCircle(center - 8, center + 8, 1.5);
+
+        graphics.generateTexture('time_fragment', size, size);
         graphics.destroy();
     }
 
