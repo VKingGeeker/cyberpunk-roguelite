@@ -11,7 +11,6 @@ import TimeFragment from '../entities/TimeFragment';
 import { GAME_CONFIG } from '../core/Config';
 import { EnemyType } from '../core/Types';
 import { getEnemyTemplate, rollLoot } from '../data/Enemies';
-import { TutorialSystem } from '../systems/TutorialSystem';
 import { TimeRewindSystem, TIME_REWIND_CONFIG } from '../systems/TimeRewindSystem';
 
 export default class GameScene extends Phaser.Scene {
@@ -24,7 +23,6 @@ export default class GameScene extends Phaser.Scene {
     private spawnTimer!: Phaser.Time.TimerEvent;
     private powerUpTimer!: Phaser.Time.TimerEvent;
     private isGameOver: boolean = false;
-    private tutorialSystem!: TutorialSystem;
     private timeRewindSystem!: TimeRewindSystem;
 
     constructor() {
@@ -104,10 +102,6 @@ export default class GameScene extends Phaser.Scene {
         this.data.set('gameTime', 0);
 
         // 初始化时间回溯系统
-        this.initTimeRewindSystem();
-
-        // 初始化教程系统
-        this.initTutorial();
     }
 
     /**
@@ -966,7 +960,6 @@ export default class GameScene extends Phaser.Scene {
      */
     private openTimeRewindScene(): void {
         if (this.isGameOver) return;
-        if (this.tutorialSystem?.isTutorialActive()) return;
 
         this.physics.pause();
         
@@ -1063,54 +1056,5 @@ export default class GameScene extends Phaser.Scene {
      */
     public getTimeRewindSystem(): TimeRewindSystem {
         return this.timeRewindSystem;
-    }
-
-    // ========== 教程系统相关方法 ==========
-
-    /**
-     * 初始化教程系统
-     */
-    private initTutorial(): void {
-        this.tutorialSystem = new TutorialSystem(this);
-        
-        // 监听教程动作事件
-        this.events.on('tutorial-action', (action: string) => {
-            if (this.tutorialSystem) {
-                this.tutorialSystem.notifyAction(action);
-            }
-        });
-        
-        // 监听教程完成事件
-        this.events.on('tutorial-complete', () => {
-            console.log('[Tutorial] 教程完成事件');
-        });
-        
-        // 延迟启动教程，确保场景完全加载
-        this.time.delayedCall(1000, () => {
-            this.tutorialSystem.start(
-                (step, total) => {
-                    console.log(`[Tutorial] 步骤 ${step + 1}/${total}`);
-                },
-                () => {
-                    console.log('[Tutorial] 教程完成回调');
-                }
-            );
-        });
-    }
-
-    /**
-     * 通知教程系统动作完成
-     */
-    public notifyTutorialAction(action: string): void {
-        if (this.tutorialSystem) {
-            this.tutorialSystem.notifyAction(action);
-        }
-    }
-
-    /**
-     * 检查教程是否激活
-     */
-    public isTutorialActive(): boolean {
-        return this.tutorialSystem?.isTutorialActive() || false;
     }
 }

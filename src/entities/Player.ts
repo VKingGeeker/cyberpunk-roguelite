@@ -158,12 +158,57 @@ export default class Player extends Phaser.GameObjects.Sprite {
     /**
      * 技能选择回调
      */
-    private onSkillSelected(skillId: string, isNew: boolean): void {
+    private onSkillSelected(skillId: string, isNew: boolean, replaceTargetId?: string): void {
         if (isNew) {
-            this.learnSkill(skillId);
+            if (replaceTargetId) {
+                // 替换技能
+                this.replaceSkill(replaceTargetId, skillId);
+            } else {
+                this.learnSkill(skillId);
+            }
         } else {
             this.upgradeSkill(skillId);
         }
+    }
+
+    /**
+     * 替换技能
+     */
+    public replaceSkill(oldSkillId: string, newSkillId: string): void {
+        // 移除旧技能
+        this.ownedSkills.delete(oldSkillId);
+        
+        // 学习新技能
+        const skillData = getSkillById(newSkillId);
+        if (!skillData) return;
+
+        const skill: Skill = { ...skillData, level: 1, lastUsedTime: 0 };
+        this.ownedSkills.set(newSkillId, { skill, cooldownEndTime: 0 });
+        
+        // 显示替换提示
+        const oldSkill = getSkillById(oldSkillId);
+        const color = getSkillColor(newSkillId);
+        const text = this.scene.add.text(this.x, this.y - 60, `技能替换: ${oldSkill?.name || '未知'} → ${skill.name}`, {
+            fontSize: '18px',
+            fontStyle: 'bold',
+            color: `#${color.toString(16).padStart(6, '0')}`,
+            fontFamily: 'Courier New, monospace',
+            stroke: '#000000',
+            strokeThickness: 2
+        });
+        text.setOrigin(0.5);
+        text.setDepth(200);
+
+        this.scene.tweens.add({
+            targets: text,
+            y: this.y - 100,
+            alpha: 0,
+            duration: 2000,
+            onComplete: () => text.destroy()
+        });
+
+        // 发射技能变更事件
+        this.scene.events.emit('skill-changed');
     }
 
     /**

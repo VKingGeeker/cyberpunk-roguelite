@@ -20,6 +20,10 @@ export default class UIScene extends Phaser.Scene {
     private levelText!: Phaser.GameObjects.Text;
     private killText!: Phaser.GameObjects.Text;
     
+    // 帮助面板
+    private helpPanel: Phaser.GameObjects.Container | null = null;
+    private isHelpVisible: boolean = false;
+    
     // 霓虹效果
     private scanlineOverlay!: Phaser.GameObjects.Graphics;
 
@@ -42,6 +46,7 @@ export default class UIScene extends Phaser.Scene {
         this.createSkillBar();
         this.createExperienceBar();
         this.createKillCounter();
+        this.createHelpButton();
         this.createCyberpunkDecorations();
 
         // 监听玩家事件
@@ -625,6 +630,265 @@ export default class UIScene extends Phaser.Scene {
             scale: { from: 1.3, to: 1 },
             duration: 200,
             ease: 'Back.out'
+        });
+    }
+
+    /**
+     * 创建帮助按钮 - 右上角
+     */
+    private createHelpButton(): void {
+        const width = this.cameras.main.width;
+        const btnX = width - 50;
+        const btnY = 50;
+
+        // 按钮背景
+        const btnBg = this.add.graphics();
+        btnBg.fillStyle(0x0a0a1a, 0.9);
+        btnBg.fillCircle(btnX, btnY, 25);
+        btnBg.lineStyle(2, 0x00ffff, 1);
+        btnBg.strokeCircle(btnX, btnY, 25);
+
+        // 问号图标
+        const helpIcon = this.add.text(btnX, btnY, '?', {
+            fontSize: '28px',
+            fontStyle: 'bold',
+            color: '#00ffff',
+            fontFamily: 'Courier New, monospace'
+        });
+        helpIcon.setOrigin(0.5);
+
+        // 交互区域
+        const hitArea = this.add.circle(btnX, btnY, 25, 0x000000, 0);
+        hitArea.setInteractive({ useHandCursor: true });
+
+        // 悬停效果
+        hitArea.on('pointerover', () => {
+            btnBg.clear();
+            btnBg.fillStyle(0x1a1a2e, 1);
+            btnBg.fillCircle(btnX, btnY, 25);
+            btnBg.lineStyle(3, 0x00ffff, 1);
+            btnBg.strokeCircle(btnX, btnY, 25);
+            helpIcon.setScale(1.2);
+        });
+
+        hitArea.on('pointerout', () => {
+            btnBg.clear();
+            btnBg.fillStyle(0x0a0a1a, 0.9);
+            btnBg.fillCircle(btnX, btnY, 25);
+            btnBg.lineStyle(2, 0x00ffff, 1);
+            btnBg.strokeCircle(btnX, btnY, 25);
+            helpIcon.setScale(1);
+        });
+
+        hitArea.on('pointerdown', () => {
+            this.toggleHelpPanel();
+        });
+    }
+
+    /**
+     * 切换帮助面板显示
+     */
+    private toggleHelpPanel(): void {
+        if (this.isHelpVisible) {
+            this.hideHelpPanel();
+        } else {
+            this.showHelpPanel();
+        }
+    }
+
+    /**
+     * 显示帮助面板
+     */
+    private showHelpPanel(): void {
+        if (this.helpPanel) return;
+
+        this.isHelpVisible = true;
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
+
+        // 创建面板容器
+        this.helpPanel = this.add.container(width / 2, height / 2);
+        this.helpPanel.setDepth(2000);
+
+        // 半透明背景
+        const overlay = this.add.graphics();
+        overlay.fillStyle(0x000000, 0.85);
+        overlay.fillRect(-width / 2, -height / 2, width, height);
+        this.helpPanel.add(overlay);
+
+        // 面板背景
+        const panelWidth = 600;
+        const panelHeight = 500;
+        const panelBg = this.add.graphics();
+        panelBg.fillStyle(0x0a0a1a, 0.98);
+        panelBg.fillRoundedRect(-panelWidth / 2, -panelHeight / 2, panelWidth, panelHeight, 15);
+        panelBg.lineStyle(3, 0x00ffff, 1);
+        panelBg.strokeRoundedRect(-panelWidth / 2, -panelHeight / 2, panelWidth, panelHeight, 15);
+        this.helpPanel.add(panelBg);
+
+        // 标题
+        const title = this.add.text(0, -panelHeight / 2 + 30, '>> GAME HELP <<', {
+            fontSize: '32px',
+            fontStyle: 'bold',
+            color: '#00ffff',
+            fontFamily: 'Courier New, monospace',
+            stroke: '#000000',
+            strokeThickness: 2
+        });
+        title.setOrigin(0.5);
+        this.helpPanel.add(title);
+
+        // 帮助内容
+        const helpContent = [
+            { label: 'MOVEMENT', content: 'WASD or Arrow Keys' },
+            { label: 'ATTACK', content: 'Left Click / Space' },
+            { label: 'SWITCH WEAPON', content: '1 / 2 / 3 or Q' },
+            { label: 'CRAFTING', content: 'C Key' },
+            { label: 'QUICK SAVE', content: 'F5' },
+            { label: 'QUICK LOAD', content: 'F9' },
+            { label: 'SAVE MENU', content: 'Ctrl + S' },
+            { label: 'LOAD MENU', content: 'Ctrl + L' },
+            { label: 'TIME REWIND', content: 'T Key' },
+            { label: 'SKILL SLOTS', content: 'Max 6 Skills' }
+        ];
+
+        const startY = -panelHeight / 2 + 80;
+        helpContent.forEach((item, index) => {
+            const y = startY + index * 38;
+            
+            // 标签
+            const label = this.add.text(-200, y, item.label, {
+                fontSize: '16px',
+                fontStyle: 'bold',
+                color: '#ff00ff',
+                fontFamily: 'Courier New, monospace'
+            });
+            this.helpPanel.add(label);
+
+            // 分隔符
+            const separator = this.add.text(-50, y, ':', {
+                fontSize: '16px',
+                color: '#888888',
+                fontFamily: 'Courier New, monospace'
+            });
+            this.helpPanel.add(separator);
+
+            // 内容
+            const content = this.add.text(-30, y, item.content, {
+                fontSize: '16px',
+                color: '#ffffff',
+                fontFamily: 'Courier New, monospace'
+            });
+            this.helpPanel.add(content);
+        });
+
+        // 游戏提示
+        const tipsY = startY + helpContent.length * 38 + 20;
+        const tipsTitle = this.add.text(0, tipsY, '--- TIPS ---', {
+            fontSize: '18px',
+            fontStyle: 'bold',
+            color: '#ffff00',
+            fontFamily: 'Courier New, monospace'
+        });
+        tipsTitle.setOrigin(0.5);
+        this.helpPanel.add(tipsTitle);
+
+        const tips = [
+            '• Collect power-ups to gain XP and level up',
+            '• Skills auto-trigger when enemies are nearby',
+            '• Craft better gear from dropped materials',
+            '• Use time fragments to rewind time'
+        ];
+
+        tips.forEach((tip, index) => {
+            const tipText = this.add.text(0, tipsY + 30 + index * 25, tip, {
+                fontSize: '14px',
+                color: '#aaaaaa',
+                fontFamily: 'Courier New, monospace'
+            });
+            tipText.setOrigin(0.5);
+            this.helpPanel.add(tipText);
+        });
+
+        // 关闭按钮
+        const closeBtnY = panelHeight / 2 - 35;
+        const closeBtnBg = this.add.graphics();
+        closeBtnBg.fillStyle(0xff0044, 0.3);
+        closeBtnBg.fillRoundedRect(-60, closeBtnY - 18, 120, 36, 6);
+        closeBtnBg.lineStyle(2, 0xff0044, 1);
+        closeBtnBg.strokeRoundedRect(-60, closeBtnY - 18, 120, 36, 6);
+        this.helpPanel.add(closeBtnBg);
+
+        const closeBtnText = this.add.text(0, closeBtnY, 'CLOSE', {
+            fontSize: '18px',
+            fontStyle: 'bold',
+            color: '#ff0044',
+            fontFamily: 'Courier New, monospace'
+        });
+        closeBtnText.setOrigin(0.5);
+        this.helpPanel.add(closeBtnText);
+
+        const closeHitArea = this.add.rectangle(0, closeBtnY, 120, 36, 0x000000, 0);
+        closeHitArea.setInteractive({ useHandCursor: true });
+        this.helpPanel.add(closeHitArea);
+
+        closeHitArea.on('pointerover', () => {
+            closeBtnBg.clear();
+            closeBtnBg.fillStyle(0xff0044, 0.5);
+            closeBtnBg.fillRoundedRect(-60, closeBtnY - 18, 120, 36, 6);
+            closeBtnBg.lineStyle(2, 0xff0044, 1);
+            closeBtnBg.strokeRoundedRect(-60, closeBtnY - 18, 120, 36, 6);
+        });
+
+        closeHitArea.on('pointerout', () => {
+            closeBtnBg.clear();
+            closeBtnBg.fillStyle(0xff0044, 0.3);
+            closeBtnBg.fillRoundedRect(-60, closeBtnY - 18, 120, 36, 6);
+            closeBtnBg.lineStyle(2, 0xff0044, 1);
+            closeBtnBg.strokeRoundedRect(-60, closeBtnY - 18, 120, 36, 6);
+        });
+
+        closeHitArea.on('pointerdown', () => {
+            this.hideHelpPanel();
+        });
+
+        // 入场动画
+        this.helpPanel.setAlpha(0);
+        this.helpPanel.setScale(0.8);
+        this.tweens.add({
+            targets: this.helpPanel,
+            alpha: 1,
+            scale: 1,
+            duration: 200,
+            ease: 'Back.out'
+        });
+
+        // 暂停游戏
+        this.scene.get('GameScene').scene.pause();
+    }
+
+    /**
+     * 隐藏帮助面板
+     */
+    private hideHelpPanel(): void {
+        if (!this.helpPanel) return;
+
+        this.tweens.add({
+            targets: this.helpPanel,
+            alpha: 0,
+            scale: 0.8,
+            duration: 150,
+            ease: 'Back.in',
+            onComplete: () => {
+                if (this.helpPanel) {
+                    this.helpPanel.destroy();
+                    this.helpPanel = null;
+                }
+                this.isHelpVisible = false;
+                
+                // 恢复游戏
+                this.scene.get('GameScene').scene.resume();
+            }
         });
     }
 

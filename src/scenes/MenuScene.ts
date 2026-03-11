@@ -183,7 +183,6 @@ export default class MenuScene extends Phaser.Scene {
 
         const buttons = [
             { text: '>> START GAME', action: () => this.startGame(), color: 0x00ffff },
-            { text: '>> RESET TUTORIAL', action: () => this.resetTutorial(), color: 0x00ff00 },
             { text: '>> SETTINGS', action: () => this.showSettings(), color: 0xff00ff },
             { text: '>> ABOUT', action: () => this.showAbout(), color: 0xffff00 }
         ];
@@ -386,19 +385,6 @@ export default class MenuScene extends Phaser.Scene {
      */
     private startGame(): void {
         this.scene.start('GameScene');
-    }
-
-    /**
-     * 重置教程
-     */
-    private resetTutorial(): void {
-        // 导入TutorialSystem并重置
-        import('../systems/TutorialSystem').then(({ TutorialSystem }) => {
-            TutorialSystem.reset();
-            
-            // 显示确认消息
-            this.showMessage('Tutorial has been reset!', 0x00ff00);
-        });
     }
 
     /**

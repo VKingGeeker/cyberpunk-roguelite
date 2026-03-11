@@ -5,15 +5,18 @@
 
 import Phaser from 'phaser';
 import { Skill } from '../core/Types';
-import { getAllAvailableSkills, getSkillUpgradeDescription, getSkillColor, SKILL_UPGRADE_DATA } from '../data/Skills';
+import { getAllAvailableSkills, getSkillUpgradeDescription, getSkillColor, SKILL_UPGRADE_DATA, getSkillById } from '../data/Skills';
+
+const MAX_SKILLS = 6;
 
 interface SkillOption {
     skill: Skill;
     isNew: boolean;
+    replaceTargetId?: string; // 如果是替换技能，记录被替换的技能ID
 }
 
 export default class SkillSelectScene extends Phaser.Scene {
-    private selectedCallback: ((skillId: string, isNew: boolean) => void) | null = null;
+    private selectedCallback: ((skillId: string, isNew: boolean, replaceTargetId?: string) => void) | null = null;
     private currentSkills: Map<string, number> = new Map();
     private options: SkillOption[] = [];
 
@@ -26,7 +29,7 @@ export default class SkillSelectScene extends Phaser.Scene {
      */
     init(data: { 
         currentSkills: Map<string, number>,
-        callback: (skillId: string, isNew: boolean) => void 
+        callback: (skillId: string, isNew: boolean, replaceTargetId?: string) => void 
     }): void {
         this.currentSkills = data.currentSkills;
         this.selectedCallback = data.callback;
@@ -60,7 +63,11 @@ export default class SkillSelectScene extends Phaser.Scene {
      */
     private generateOptions(): void {
         const allSkills = getAllAvailableSkills();
-        const availableOptions: SkillOption[] = [];
+        const options: SkillOption[] = [];
+        
+        // 计算当前拥有的技能数量
+        const ownedSkillCount = Array.from(this.currentSkills.values()).filter(l => l > 0).length;
+        const canAddNewSkill = ownedSkillCount < MAX_SKILLS;
 
         // 分离已有技能和新技能
         const ownedSkills: Skill[] = [];
@@ -79,21 +86,53 @@ export default class SkillSelectScene extends Phaser.Scene {
         Phaser.Utils.Array.Shuffle(ownedSkills);
         Phaser.Utils.Array.Shuffle(newSkills);
 
-        // 优先选择已有技能升级（60%概率）
-        // 然后选择新技能（40%概率）
-        const options: SkillOption[] = [];
-
-        // 添加已有技能升级选项
-        for (const skill of ownedSkills) {
-            if (options.length < 2) {
-                options.push({ skill, isNew: false });
+        // 如果技能已满，只显示升级选项或替换选项
+        if (!canAddNewSkill) {
+            // 优先添加已有技能升级选项
+            for (const skill of ownedSkills) {
+                if (options.length < 2) {
+                    options.push({ skill, isNew: false });
+                }
             }
-        }
+            
+            // 添加替换选项：随机选择一个新技能和一个已有技能配对
+            if (newSkills.length > 0 && ownedSkills.length > 0) {
+                const randomNewSkill = newSkills[0];
+                // 获取所有已满级技能作为替换目标
+                const maxedSkills = Array.from(this.currentSkills.entries())
+                    .filter(([id, level]) => level > 0)
+                    .map(([id, level]) => {
+                        const skillData = getSkillById(id);
+                        return skillData ? { ...skillData, level } : null;
+                    })
+                    .filter((s): s is Skill => s !== null);
+                
+                if (maxedSkills.length > 0) {
+                    Phaser.Utils.Array.Shuffle(maxedSkills);
+                    options.push({ 
+                        skill: { ...randomNewSkill, level: 0 }, 
+                        isNew: true,
+                        replaceTargetId: maxedSkills[0].id 
+                    });
+                }
+            }
+        } else {
+            // 技能未满，正常选择
+            // 优先选择已有技能升级（60%概率）
+            // 然后选择新技能（40%概率）
+            
+            // 添加已有技能升级选项
+            for (const skill of ownedSkills) {
+                if (options.length < 2) {
+                    options.push({ skill, isNew: false });
+                }
+            }
 
-        // 添加新技能选项
-        for (const skill of newSkills) {
-            if (options.length < 3) {
-                options.push({ skill, isNew: true });
+            // 添加新技能选项
+            for (const skill of newSkills) {
+                if (options.length < 3) {
+                    options.push({ skill, isNew: true });
+                }
             }
         }
 
@@ -202,7 +241,7 @@ export default class SkillSelectScene extends Phaser.Scene {
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
         const cardWidth = 280;
-        const cardHeight = 380;
+        const cardHeight = 450; // 增加高度以容纳属性
         const gap = 40;
         const startX = width / 2 - (cardWidth * 1.5 + gap);
 
@@ -222,7 +261,7 @@ export default class SkillSelectScene extends Phaser.Scene {
         width: number, height: number, 
         option: SkillOption, index: number
     ): void {
-        const { skill, isNew } = option;
+        const { skill, isNew, replaceTargetId } = option;
         const color = getSkillColor(skill.id);
         
         // 卡片容器
@@ -243,9 +282,18 @@ export default class SkillSelectScene extends Phaser.Scene {
         container.add(glow);
         container.add(bg);
 
-        // 状态标签（新技能/升级）
-        const labelColor = isNew ? 0x00ffff : 0xffff00;
-        const labelText = isNew ? 'NEW' : `LV.${skill.level} → LV.${skill.level + 1}`;
+        // 状态标签（新技能/升级/替换）
+        let labelColor = isNew ? 0x00ffff : 0xffff00;
+        let labelText = isNew ? 'NEW' : `LV.${skill.level} → LV.${skill.level + 1}`;
+        
+        // 如果是替换技能
+        if (replaceTargetId) {
+            const targetSkill = getSkillById(replaceTargetId);
+            if (targetSkill) {
+                labelText = `替换: ${targetSkill.name}`;
+                labelColor = 0xff4444;
+            }
+        }
         
         const label = this.add.text(0, -height/2 + 25, labelText, {
             fontSize: '14px',
@@ -259,18 +307,18 @@ export default class SkillSelectScene extends Phaser.Scene {
         // 技能图标
         const iconBg = this.add.graphics();
         iconBg.fillStyle(0x1a1a2e, 1);
-        iconBg.fillCircle(0, -60, 45);
+        iconBg.fillCircle(0, -80, 40);
         iconBg.lineStyle(3, color, 1);
-        iconBg.strokeCircle(0, -60, 45);
+        iconBg.strokeCircle(0, -80, 40);
 
-        const icon = this.add.image(0, -60, skill.icon);
-        icon.setDisplaySize(60, 60);
+        const icon = this.add.image(0, -80, skill.icon);
+        icon.setDisplaySize(55, 55);
         container.add(iconBg);
         container.add(icon);
 
         // 技能名称
-        const name = this.add.text(0, 10, skill.name, {
-            fontSize: '22px',
+        const name = this.add.text(0, -20, skill.name, {
+            fontSize: '20px',
             fontStyle: 'bold',
             color: '#ffffff',
             fontFamily: 'Courier New, monospace',
@@ -292,17 +340,20 @@ export default class SkillSelectScene extends Phaser.Scene {
             'utility': 0xffff44
         };
         
-        const branchText = this.add.text(0, 40, `[${branchNames[skill.branch] || '未知'}]`, {
-            fontSize: '12px',
+        const branchText = this.add.text(0, 5, `[${branchNames[skill.branch] || '未知'}]`, {
+            fontSize: '11px',
             color: `#${(branchColors[skill.branch] || 0xffffff).toString(16).padStart(6, '0')}`,
             fontFamily: 'Courier New, monospace'
         });
         branchText.setOrigin(0.5);
         container.add(branchText);
 
+        // 技能属性面板
+        this.createSkillStatsPanel(container, skill, 35);
+
         // 技能描述
-        const desc = this.add.text(0, 80, skill.description, {
-            fontSize: '13px',
+        const desc = this.add.text(0, 120, skill.description, {
+            fontSize: '11px',
             color: '#aaaaaa',
             fontFamily: 'Courier New, monospace',
             align: 'center',
@@ -312,10 +363,10 @@ export default class SkillSelectScene extends Phaser.Scene {
         container.add(desc);
 
         // 升级效果（如果是升级）
-        if (!isNew && skill.level > 0) {
+        if (!isNew && skill.level > 0 && !replaceTargetId) {
             const upgradeDesc = getSkillUpgradeDescription(skill.id, skill.level - 1);
-            const upgradeText = this.add.text(0, 130, `升级: ${upgradeDesc}`, {
-                fontSize: '12px',
+            const upgradeText = this.add.text(0, 155, `升级: ${upgradeDesc}`, {
+                fontSize: '11px',
                 color: '#ffff00',
                 fontFamily: 'Courier New, monospace',
                 align: 'center',
@@ -325,17 +376,8 @@ export default class SkillSelectScene extends Phaser.Scene {
             container.add(upgradeText);
         }
 
-        // 冷却信息
-        const cooldownText = this.add.text(0, height/2 - 50, `冷却: ${skill.cooldown}秒`, {
-            fontSize: '12px',
-            color: '#888888',
-            fontFamily: 'Courier New, monospace'
-        });
-        cooldownText.setOrigin(0.5);
-        container.add(cooldownText);
-
         // 选择按钮
-        const btnY = height/2 - 25;
+        const btnY = height/2 - 30;
         const btnBg = this.add.graphics();
         btnBg.fillStyle(color, 0.2);
         btnBg.fillRoundedRect(-80, btnY - 18, 160, 36, 6);
@@ -343,7 +385,7 @@ export default class SkillSelectScene extends Phaser.Scene {
         btnBg.strokeRoundedRect(-80, btnY - 18, 160, 36, 6);
         container.add(btnBg);
 
-        const btnText = this.add.text(0, btnY, 'SELECT', {
+        const btnText = this.add.text(0, btnY, replaceTargetId ? 'REPLACE' : 'SELECT', {
             fontSize: '16px',
             fontStyle: 'bold',
             color: `#${color.toString(16).padStart(6, '0')}`,
@@ -373,7 +415,7 @@ export default class SkillSelectScene extends Phaser.Scene {
         });
 
         hitArea.on('pointerdown', () => {
-            this.selectSkill(skill.id, isNew);
+            this.selectSkill(skill.id, isNew, replaceTargetId);
         });
 
         // 入场动画
@@ -387,6 +429,112 @@ export default class SkillSelectScene extends Phaser.Scene {
             duration: 300,
             delay: index * 100,
             ease: 'Back.out'
+        });
+    }
+
+    /**
+     * 创建技能属性面板
+     */
+    private createSkillStatsPanel(container: Phaser.GameObjects.Container, skill: Skill, startY: number): void {
+        const effect = skill.effect;
+        const stats: { label: string; value: string; icon: string }[] = [];
+
+        // 伤害
+        if (effect.damage) {
+            stats.push({ 
+                label: '伤害', 
+                value: `${Math.round(effect.damage * 100)}%`, 
+                icon: '⚔' 
+            });
+        }
+
+        // 范围
+        if (effect.range) {
+            stats.push({ 
+                label: '范围', 
+                value: `${effect.range}`, 
+                icon: '◎' 
+            });
+        }
+
+        // 冷却
+        stats.push({ 
+            label: '冷却', 
+            value: `${skill.cooldown}s`, 
+            icon: '⏱' 
+        });
+
+        // 连锁次数
+        if (effect.chains) {
+            stats.push({ 
+                label: '连锁', 
+                value: `${effect.chains}`, 
+                icon: '⚡' 
+            });
+        }
+
+        // 持续时间
+        if (effect.duration) {
+            stats.push({ 
+                label: '持续', 
+                value: `${effect.duration}s`, 
+                icon: '⏳' 
+            });
+        }
+
+        // 治疗量
+        if (effect.healValue) {
+            stats.push({ 
+                label: '治疗', 
+                value: `${effect.healValue}%`, 
+                icon: '❤' 
+            });
+        }
+
+        // 眩晕时间
+        if (effect.stunDuration) {
+            stats.push({ 
+                label: '眩晕', 
+                value: `${effect.stunDuration}s`, 
+                icon: '💫' 
+            });
+        }
+
+        // 速度加成
+        if (effect.speedBoost) {
+            stats.push({ 
+                label: '加速', 
+                value: `${Math.round(effect.speedBoost * 100)}%`, 
+                icon: '💨' 
+            });
+        }
+
+        // 创建属性面板背景
+        const panelWidth = 240;
+        const panelHeight = Math.max(40, Math.ceil(stats.length / 3) * 25 + 10);
+        const panelBg = this.add.graphics();
+        panelBg.fillStyle(0x1a1a2e, 0.8);
+        panelBg.fillRoundedRect(-panelWidth/2, startY, panelWidth, panelHeight, 6);
+        panelBg.lineStyle(1, 0x333344, 0.5);
+        panelBg.strokeRoundedRect(-panelWidth/2, startY, panelWidth, panelHeight, 6);
+        container.add(panelBg);
+
+        // 显示属性（每行3个）
+        const colWidth = 80;
+        const startX = -panelWidth/2 + 40;
+        stats.forEach((stat, i) => {
+            const col = i % 3;
+            const row = Math.floor(i / 3);
+            const x = startX + col * colWidth;
+            const y = startY + 8 + row * 25;
+
+            const statText = this.add.text(x, y, `${stat.icon}${stat.value}`, {
+                fontSize: '11px',
+                color: '#00ffff',
+                fontFamily: 'Courier New, monospace'
+            });
+            statText.setOrigin(0.5, 0);
+            container.add(statText);
         });
     }
 
@@ -444,7 +592,7 @@ export default class SkillSelectScene extends Phaser.Scene {
     /**
      * 选择技能
      */
-    private selectSkill(skillId: string, isNew: boolean): void {
+    private selectSkill(skillId: string, isNew: boolean, replaceTargetId?: string): void {
         // 播放选择音效和动画
         this.cameras.main.flash(200, 0, 255, 255, false);
 
@@ -455,7 +603,7 @@ export default class SkillSelectScene extends Phaser.Scene {
             
             // 调用回调
             if (this.selectedCallback) {
-                this.selectedCallback(skillId, isNew);
+                this.selectedCallback(skillId, isNew, replaceTargetId);
             }
             
             // 关闭场景
