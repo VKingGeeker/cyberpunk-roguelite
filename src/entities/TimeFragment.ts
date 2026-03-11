@@ -90,53 +90,76 @@ export default class TimeFragment extends Phaser.GameObjects.Sprite {
      * 收集碎片
      */
     public collect(): void {
+        // 双重检查防止重复调用
         if (this.collected) return;
         this.collected = true;
 
+        // 安全检查场景是否存在
+        if (!this.scene) return;
+
         // 立即禁用物理体，防止再次触发碰撞
-        const body = this.body as Phaser.Physics.Arcade.Body;
-        if (body) {
-            body.enable = false;
+        try {
+            const body = this.body as Phaser.Physics.Arcade.Body;
+            if (body && body.enable) {
+                body.enable = false;
+            }
+        } catch (e) {
+            // 忽略已销毁的物理体
         }
 
         // 播放收集动画
-        this.scene.tweens.add({
-            targets: [this, this.glow],
-            scale: 0,
-            alpha: 0,
-            y: this.y - 50,
-            duration: 300,
-            ease: 'Power2',
-            onComplete: () => {
-                if (this.glow) this.glow.destroy();
-                this.destroy();
-            }
-        });
+        try {
+            this.scene.tweens.add({
+                targets: [this, this.glow],
+                scale: 0,
+                alpha: 0,
+                y: this.y - 50,
+                duration: 300,
+                ease: 'Power2',
+                onComplete: () => {
+                    try {
+                        if (this.glow) this.glow.destroy();
+                        this.destroy();
+                    } catch (e) {
+                        // 忽略销毁错误
+                    }
+                }
+            });
 
-        // 显示收集特效
-        this.showCollectEffect();
+            // 显示收集特效
+            this.showCollectEffect();
+        } catch (e) {
+            // 如果动画添加失败，直接销毁
+            this.destroy();
+        }
     }
 
     /**
      * 显示收集特效
      */
     private showCollectEffect(): void {
-        const text = this.scene.add.text(this.x, this.y - 20, `+${this.value} 时空碎片`, {
-            fontSize: '16px',
-            color: '#00ffff',
-            fontFamily: 'Courier New, monospace',
-            fontStyle: 'bold',
-            stroke: '#000000',
-            strokeThickness: 2
-        }).setOrigin(0.5).setDepth(200);
+        if (!this.scene) return;
+        
+        try {
+            const text = this.scene.add.text(this.x, this.y - 20, `+${this.value} 时空碎片`, {
+                fontSize: '16px',
+                color: '#00ffff',
+                fontFamily: 'Courier New, monospace',
+                fontStyle: 'bold',
+                stroke: '#000000',
+                strokeThickness: 2
+            }).setOrigin(0.5).setDepth(200);
 
-        this.scene.tweens.add({
-            targets: text,
-            y: text.y - 40,
-            alpha: 0,
-            duration: 1000,
-            onComplete: () => text.destroy()
-        });
+            this.scene.tweens.add({
+                targets: text,
+                y: text.y - 40,
+                alpha: 0,
+                duration: 1000,
+                onComplete: () => text.destroy()
+            });
+        } catch (e) {
+            // 忽略特效显示错误
+        }
     }
 
     /**

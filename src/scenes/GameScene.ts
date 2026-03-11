@@ -421,9 +421,14 @@ export default class GameScene extends Phaser.Scene {
 
         // 添加与玩家的碰撞检测
         this.physics.add.overlap(this.player, powerUp, () => {
-            // 检查 powerUp 是否仍然有效（未被销毁）
-            if (!powerUp || !powerUp.scene || !powerUp.active) return;
-            this.collectPowerUp(powerUp);
+            try {
+                // 检查 powerUp 是否仍然有效（未被销毁）
+                if (!powerUp || !powerUp.scene || !powerUp.active) return;
+                this.collectPowerUp(powerUp);
+            } catch (e) {
+                // 忽略碰撞处理中的错误
+                console.warn('[GameScene] PowerUp collision error:', e);
+            }
         });
     }
 
@@ -1023,13 +1028,18 @@ export default class GameScene extends Phaser.Scene {
         
         // 设置与玩家的碰撞检测
         this.physics.add.overlap(this.player, fragment, () => {
-            // 检查 fragment 是否仍然有效（未被销毁）
-            if (!fragment || !fragment.scene || !fragment.active) return;
-            
-            if (!fragment.isCollected()) {
-                fragment.collect();
-                this.timeRewindSystem.addTimeFragments(fragment.getValue());
-                this.timeFragments = this.timeFragments.filter(f => f !== fragment);
+            try {
+                // 检查 fragment 是否仍然有效（未被销毁）
+                if (!fragment || !fragment.scene || !fragment.active) return;
+                
+                if (!fragment.isCollected()) {
+                    fragment.collect();
+                    this.timeRewindSystem.addTimeFragments(fragment.getValue());
+                    this.timeFragments = this.timeFragments.filter(f => f !== fragment);
+                }
+            } catch (e) {
+                // 忽略碰撞处理中的错误
+                console.warn('[GameScene] TimeFragment collision error:', e);
             }
         });
     }

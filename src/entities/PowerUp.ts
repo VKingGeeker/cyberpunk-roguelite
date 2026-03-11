@@ -288,62 +288,88 @@ export default class PowerUp extends Phaser.GameObjects.Sprite {
      * 销毁道具
      */
     public collect(): void {
+        // 安全检查场景是否存在
+        if (!this.scene) return;
+
         // 立即禁用物理体，防止再次触发碰撞
-        const body = this.body as Phaser.Physics.Arcade.Body;
-        if (body) {
-            body.enable = false;
+        try {
+            const body = this.body as Phaser.Physics.Arcade.Body;
+            if (body && body.enable) {
+                body.enable = false;
+            }
+        } catch (e) {
+            // 忽略已销毁的物理体
         }
 
         if (this.pulseTween) {
-            this.pulseTween.stop();
+            try {
+                this.pulseTween.stop();
+            } catch (e) {
+                // 忽略动画停止错误
+            }
         }
 
         // 销毁发光效果
-        const glow = this.getData('glow') as Phaser.GameObjects.Graphics;
-        if (glow) {
-            glow.destroy();
+        try {
+            const glow = this.getData('glow') as Phaser.GameObjects.Graphics;
+            if (glow) {
+                glow.destroy();
+            }
+        } catch (e) {
+            // 忽略销毁错误
         }
 
-        // 创建拾取粒子效果
-        this.createCollectParticles();
+        try {
+            // 创建拾取粒子效果
+            this.createCollectParticles();
 
-        // 拾取动画
-        this.scene.tweens.add({
-            targets: this,
-            scale: 0,
-            alpha: 0,
-            duration: 200,
-            ease: 'Power2',
-            onComplete: () => this.destroy()
-        });
+            // 拾取动画
+            this.scene.tweens.add({
+                targets: this,
+                scale: 0,
+                alpha: 0,
+                duration: 200,
+                ease: 'Power2',
+                onComplete: () => this.destroy()
+            });
+        } catch (e) {
+            // 如果动画添加失败，直接销毁
+            this.destroy();
+        }
     }
 
     /**
      * 创建拾取粒子效果
      */
     private createCollectParticles(): void {
-        const colors = [this.config.color, 0xffffff];
+        if (!this.scene) return;
         
-        for (let i = 0; i < 8; i++) {
-            const angle = (Math.PI * 2 * i) / 8;
-            const particle = this.scene.add.circle(
-                this.x,
-                this.y,
-                3,
-                colors[i % colors.length],
-                1
-            );
+        try {
+            const colors = [this.config.color, 0xffffff];
+            
+            for (let i = 0; i < 8; i++) {
+                const angle = (Math.PI * 2 * i) / 8;
+                const particle = this.scene.add.circle(
+                    this.x,
+                    this.y,
+                    3,
+                    colors[i % colors.length],
+                    1
+                );
 
-            this.scene.tweens.add({
-                targets: particle,
-                x: this.x + Math.cos(angle) * 30,
-                y: this.y + Math.sin(angle) * 30,
-                alpha: 0,
-                scale: 0,
-                duration: 300,
-                ease: 'Power2',
-                onComplete: () => particle.destroy()
-            });
+                this.scene.tweens.add({
+                    targets: particle,
+                    x: this.x + Math.cos(angle) * 30,
+                    y: this.y + Math.sin(angle) * 30,
+                    alpha: 0,
+                    scale: 0,
+                    duration: 300,
+                    ease: 'Power2',
+                    onComplete: () => particle.destroy()
+                });
+            }
+        } catch (e) {
+            // 忽略粒子效果创建错误
         }
     }
 }
