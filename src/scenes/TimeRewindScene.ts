@@ -261,20 +261,25 @@ export default class TimeRewindScene extends Phaser.Scene {
         // 执行回溯
         const result = this.timeRewindSystem.rewind(snapshot.id);
         if (result) {
-            // 应用惩罚
-            const penalizedData = this.timeRewindSystem.applyPenalty({ ...result.playerData });
+            // 应用惩罚（使用深拷贝避免修改原始快照）
+            const penalizedData = this.timeRewindSystem.applyPenalty(JSON.parse(JSON.stringify(result.playerData)));
             
             // 通知游戏场景应用回溯数据
             this.scene.get('GameScene').events.emit('time-rewind', {
                 snapshot: { ...result, playerData: penalizedData }
             });
 
-            this.showMessage(`已回溯到 ${snapshot.metadata.label}`, '#00ff00');
-            
-            // 延迟关闭
-            this.time.delayedCall(500, () => {
-                this.closeScene();
-            });
+            // 恢复游戏场景的物理引擎
+            const gameScene = this.scene.get('GameScene') as any;
+            if (gameScene && gameScene.physics) {
+                gameScene.physics.resume();
+            }
+
+            // 恢复游戏场景（重要：确保GameScene的update循环恢复执行）
+            this.scene.resume('GameScene');
+
+            // 立即关闭场景，让 GameScene 接管恢复流程
+            this.scene.stop();
         }
     }
 
@@ -314,8 +319,36 @@ export default class TimeRewindScene extends Phaser.Scene {
      * 关闭场景
      */
     private closeScene(): void {
+        // 恢复游戏场景的物理引擎
+        const gameScene = this.scene.get('GameScene') as any;
+        if (gameScene && gameScene.physics) {
+            gameScene.physics.resume();
+        }
+        
         // 恢复游戏场景
         this.scene.resume('GameScene');
         this.scene.stop();
+    }
+
+    /**
+     * 场景关闭时的清理
+     */
+    shutdown(): void {
+        // 清理键盘事件监听
+        if (this.input.keyboard) {
+            this.input.keyboard.off('keydown-UP');
+            this.input.keyboard.off('keydown-DOWN');
+            this.input.keyboard.off('keydown-ENTER');
+            this.input.keyboard.off('keydown-ESC');
+        }
+        
+        // 清理容器
+        if (this.container) {
+            this.container.destroy();
+            this.container = null;
+        }
+        
+        // 清理快照引用
+        this.snapshots = [];
     }
 }

@@ -14,7 +14,7 @@ export const PASSIVE_SKILLS: Skill[] = [
     {
         id: 'skill_neon_slash',
         name: '霓虹斩击',
-        description: '向前方释放霓虹能量斩，造成攻击力150%伤害',
+        description: '向前方释放霓虹能量斩，造成攻击力180%伤害',
         icon: 'icon_slash',
         branch: SkillBranch.OFFENSE,
         manaCost: 0,
@@ -24,14 +24,14 @@ export const PASSIVE_SKILLS: Skill[] = [
         maxLevel: 5,
         effect: {
             type: SkillType.SLASH,
-            damage: 1.5,
-            range: 100
+            damage: 1.8,
+            range: 120
         }
     },
     {
         id: 'skill_plasma_spin',
         name: '等离子漩涡',
-        description: '释放等离子漩涡，对周围敌人造成攻击力200%伤害',
+        description: '释放等离子漩涡，对周围敌人造成攻击力220%伤害',
         icon: 'icon_spin',
         branch: SkillBranch.OFFENSE,
         manaCost: 0,
@@ -41,14 +41,14 @@ export const PASSIVE_SKILLS: Skill[] = [
         maxLevel: 5,
         effect: {
             type: SkillType.SPIN,
-            damage: 2.0,
-            range: 120
+            damage: 2.2,
+            range: 150
         }
     },
     {
         id: 'skill_chain_lightning',
         name: '连锁闪电',
-        description: '释放闪电链，对最多3个敌人造成攻击力120%伤害',
+        description: '释放闪电链，对最多4个敌人造成攻击力140%伤害',
         icon: 'icon_lightning',
         branch: SkillBranch.OFFENSE,
         manaCost: 0,
@@ -58,9 +58,9 @@ export const PASSIVE_SKILLS: Skill[] = [
         maxLevel: 5,
         effect: {
             type: SkillType.CHAIN_LIGHTNING,
-            damage: 1.2,
-            range: 200,
-            chains: 3
+            damage: 1.4,
+            range: 220,
+            chains: 4
         }
     },
     {
@@ -83,7 +83,7 @@ export const PASSIVE_SKILLS: Skill[] = [
     {
         id: 'skill_plasma_orb',
         name: '等离子球',
-        description: '发射追踪等离子球，造成攻击力160%伤害并爆炸',
+        description: '发射追踪等离子球，造成攻击力350%范围伤害并爆炸',
         icon: 'icon_orb',
         branch: SkillBranch.OFFENSE,
         manaCost: 0,
@@ -93,14 +93,15 @@ export const PASSIVE_SKILLS: Skill[] = [
         maxLevel: 5,
         effect: {
             type: SkillType.PLASMA_ORB,
-            damage: 1.6,
-            range: 150
+            damage: 3.5,
+            range: 160,
+            explosionRange: 100
         }
     },
     {
         id: 'skill_nova',
         name: '能量新星',
-        description: '爆发能量新星，对周围敌人造成攻击力250%伤害',
+        description: '爆发能量新星，对周围敌人造成攻击力280%伤害',
         icon: 'icon_nova',
         branch: SkillBranch.OFFENSE,
         manaCost: 0,
@@ -110,14 +111,14 @@ export const PASSIVE_SKILLS: Skill[] = [
         maxLevel: 5,
         effect: {
             type: SkillType.NOVA,
-            damage: 2.5,
-            range: 180
+            damage: 2.8,
+            range: 200
         }
     },
     {
         id: 'skill_sonic_boom',
         name: '音爆冲击',
-        description: '释放音波冲击，击退并伤害敌人',
+        description: '释放音波冲击，造成攻击力160%伤害并击退敌人',
         icon: 'icon_sonic',
         branch: SkillBranch.OFFENSE,
         manaCost: 0,
@@ -127,14 +128,14 @@ export const PASSIVE_SKILLS: Skill[] = [
         maxLevel: 5,
         effect: {
             type: SkillType.SONIC_BOOM,
-            damage: 1.4,
-            range: 200
+            damage: 1.6,
+            range: 220
         }
     },
     {
         id: 'skill_flame_wave',
         name: '烈焰波',
-        description: '释放火焰波，造成攻击力130%伤害并持续燃烧',
+        description: '释放火焰波，造成攻击力150%伤害并持续燃烧',
         icon: 'icon_flame',
         branch: SkillBranch.OFFENSE,
         manaCost: 0,
@@ -144,15 +145,15 @@ export const PASSIVE_SKILLS: Skill[] = [
         maxLevel: 5,
         effect: {
             type: SkillType.FLAME_WAVE,
-            damage: 1.3,
-            range: 180,
+            damage: 1.5,
+            range: 200,
             duration: 3
         }
     },
     {
         id: 'skill_void_rift',
         name: '虚空裂缝',
-        description: '撕裂空间，对裂缝中敌人造成持续伤害',
+        description: '撕裂空间，对裂缝中敌人造成持续伤害，总计可达攻击力320%',
         icon: 'icon_void',
         branch: SkillBranch.OFFENSE,
         manaCost: 0,
@@ -162,8 +163,8 @@ export const PASSIVE_SKILLS: Skill[] = [
         maxLevel: 5,
         effect: {
             type: SkillType.VOID_RIFT,
-            damage: 0.8,
-            range: 120,
+            damage: 1.6,
+            range: 140,
             duration: 4
         }
     },
@@ -172,24 +173,24 @@ export const PASSIVE_SKILLS: Skill[] = [
     {
         id: 'skill_nanobot_shield',
         name: '纳米护盾',
-        description: '生成纳米护盾，抵挡下一次攻击并回复10%生命值',
+        description: '生成纳米护盾，抵挡下一次攻击并回复15%生命值',
         icon: 'icon_shield',
         branch: SkillBranch.DEFENSE,
         manaCost: 0,
-        cooldown: 12,
+        cooldown: 10,
         lastUsedTime: 0,
         level: 0,
         maxLevel: 5,
         effect: {
             type: SkillType.SHIELD,
-            healValue: 10,
-            duration: 5
+            healValue: 15,
+            duration: 6
         }
     },
     {
         id: 'skill_emp_burst',
         name: 'EMP冲击波',
-        description: '释放电磁脉冲，眩晕周围敌人2秒',
+        description: '释放电磁脉冲，造成攻击力100%伤害并眩晕周围敌人2秒',
         icon: 'icon_emp',
         branch: SkillBranch.DEFENSE,
         manaCost: 0,
@@ -199,15 +200,15 @@ export const PASSIVE_SKILLS: Skill[] = [
         maxLevel: 5,
         effect: {
             type: SkillType.EMP_BURST,
-            damage: 0.5,
-            range: 150,
+            damage: 1.0,
+            range: 160,
             stunDuration: 2
         }
     },
     {
         id: 'skill_time_warp',
         name: '时间扭曲',
-        description: '减缓周围敌人移动速度50%，持续3秒',
+        description: '减缓周围敌人移动速度60%，持续4秒',
         icon: 'icon_time',
         branch: SkillBranch.DEFENSE,
         manaCost: 0,
@@ -217,32 +218,32 @@ export const PASSIVE_SKILLS: Skill[] = [
         maxLevel: 5,
         effect: {
             type: SkillType.TIME_WARP,
-            range: 200,
-            duration: 3
+            range: 220,
+            duration: 4
         }
     },
     {
         id: 'skill_nanite_swarm',
         name: '纳米虫群',
-        description: '释放纳米虫群，每秒恢复5%生命值并伤害附近敌人',
+        description: '释放纳米虫群，每秒恢复8%生命值并对附近敌人造成攻击力60%伤害',
         icon: 'icon_nanite',
         branch: SkillBranch.DEFENSE,
         manaCost: 0,
-        cooldown: 15,
+        cooldown: 12,
         lastUsedTime: 0,
         level: 0,
         maxLevel: 5,
         effect: {
             type: SkillType.NANITE_SWARM,
-            healValue: 5,
-            damage: 0.3,
+            healValue: 8,
+            damage: 0.6,
             duration: 5
         }
     },
     {
         id: 'skill_energy_drain',
         name: '能量汲取',
-        description: '汲取敌人能量，造成伤害并恢复生命值',
+        description: '汲取敌人能量，造成攻击力130%伤害并恢复20%生命值',
         icon: 'icon_drain',
         branch: SkillBranch.DEFENSE,
         manaCost: 0,
@@ -252,9 +253,9 @@ export const PASSIVE_SKILLS: Skill[] = [
         maxLevel: 5,
         effect: {
             type: SkillType.ENERGY_DRAIN,
-            damage: 1.0,
-            healValue: 15,
-            range: 150
+            damage: 1.3,
+            healValue: 20,
+            range: 160
         }
     },
     
@@ -262,18 +263,18 @@ export const PASSIVE_SKILLS: Skill[] = [
     {
         id: 'skill_overdrive',
         name: '超频驱动',
-        description: '进入超频状态，移动速度提升50%，持续5秒',
+        description: '进入超频状态，移动速度提升60%，持续6秒',
         icon: 'icon_overdrive',
         branch: SkillBranch.UTILITY,
         manaCost: 0,
-        cooldown: 15,
+        cooldown: 12,
         lastUsedTime: 0,
         level: 0,
         maxLevel: 5,
         effect: {
             type: SkillType.OVERDRIVE,
-            speedBoost: 0.5,
-            duration: 5
+            speedBoost: 0.6,
+            duration: 6
         }
     },
     {
@@ -295,7 +296,7 @@ export const PASSIVE_SKILLS: Skill[] = [
     {
         id: 'skill_ice_shard',
         name: '冰霜碎片',
-        description: '发射冰霜碎片，减速敌人30%',
+        description: '发射冰霜碎片，造成攻击力130%伤害并减速敌人40%',
         icon: 'icon_ice',
         branch: SkillBranch.UTILITY,
         manaCost: 0,
@@ -305,9 +306,28 @@ export const PASSIVE_SKILLS: Skill[] = [
         maxLevel: 5,
         effect: {
             type: SkillType.ICE_SHARD,
-            damage: 1.1,
-            range: 200,
-            duration: 2
+            damage: 1.3,
+            range: 220,
+            duration: 3
+        }
+    },
+    // ========== 召唤分支 ==========
+    {
+        id: 'skill_drone',
+        name: '数据无人机',
+        description: '召唤一架无人机环绕飞行，自动攻击敌人，持续15秒',
+        icon: 'icon_drone',
+        branch: SkillBranch.UTILITY,
+        manaCost: 0,
+        cooldown: 20,
+        lastUsedTime: 0,
+        level: 0,
+        maxLevel: 5,
+        effect: {
+            type: SkillType.DRONE,
+            damage: 0.8,
+            range: 250,
+            duration: 15
         }
     }
 ];
@@ -380,7 +400,7 @@ export const SKILL_UPGRADE_DATA: Record<string, { damageBonus: number; cooldownR
         { damageBonus: 0.5, cooldownReduction: 0.5, rangeBonus: 25 },
         { damageBonus: 0.6, cooldownReduction: 0.5, rangeBonus: 30 }
     ],
-    'skill_energy_nova': [
+    'skill_nova': [
         { damageBonus: 0.15, cooldownReduction: 0.5, rangeBonus: 15 },
         { damageBonus: 0.25, cooldownReduction: 0.5, rangeBonus: 20 },
         { damageBonus: 0.35, cooldownReduction: 1, rangeBonus: 25 },
@@ -435,6 +455,13 @@ export const SKILL_UPGRADE_DATA: Record<string, { damageBonus: number; cooldownR
         { damageBonus: 0.35, cooldownReduction: 0.3, rangeBonus: 25 },
         { damageBonus: 0.45, cooldownReduction: 0.5, rangeBonus: 30 },
         { damageBonus: 0.55, cooldownReduction: 0.5, rangeBonus: 40 }
+    ],
+    'skill_drone': [
+        { damageBonus: 0.1, cooldownReduction: 1, rangeBonus: 0 },
+        { damageBonus: 0.15, cooldownReduction: 1, rangeBonus: 0 },
+        { damageBonus: 0.2, cooldownReduction: 2, rangeBonus: 0 },
+        { damageBonus: 0.25, cooldownReduction: 2, rangeBonus: 0 },
+        { damageBonus: 0.3, cooldownReduction: 3, rangeBonus: 0 }
     ]
 };
 
@@ -514,7 +541,8 @@ export function getSkillColor(skillId: string): number {
         'skill_time_warp': 0x00ffaa,
         'skill_nanite_swarm': 0x88ff00,
         'skill_energy_drain': 0xff0066,
-        'skill_ice_shard': 0x88ffff
+        'skill_ice_shard': 0x88ffff,
+        'skill_drone': 0x00ffff
     };
     return colors[skillId] || 0xffffff;
 }

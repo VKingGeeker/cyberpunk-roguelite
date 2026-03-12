@@ -184,7 +184,7 @@ export default class CraftingScene extends Phaser.Scene {
         panel.strokeRoundedRect(centerX - panelWidth/2, centerY - panelHeight/2, panelWidth, panelHeight, 12);
 
         // 标题
-        const title = this.add.text(centerX, centerY - panelHeight/2 + 30, '⟡ WEAPON CRAFTING SYSTEM ⟡', {
+        const title = this.add.text(centerX, centerY - panelHeight/2 + 30, '⟡ 武器合成系统 ⟡', {
             fontSize: '24px',
             fontStyle: 'bold',
             color: '#ff00ff',
@@ -212,7 +212,7 @@ export default class CraftingScene extends Phaser.Scene {
         const recipeHeight = 50;
 
         // 标签
-        const label = this.add.text(startX, startY - 25, 'RECIPES', {
+        const label = this.add.text(startX, startY - 25, '配方列表', {
             fontSize: '14px',
             fontStyle: 'bold',
             color: '#00ffff',
@@ -281,7 +281,12 @@ export default class CraftingScene extends Phaser.Scene {
                 'fusion': 0xff8800,
                 'enhance': 0x4488ff
             };
-            const categoryLabel = this.add.text(recipeWidth - 55, 18, recipe.category.toUpperCase(), {
+            const categoryNames: Record<string, string> = {
+                'upgrade': '升级',
+                'fusion': '融合',
+                'enhance': '强化'
+            };
+            const categoryLabel = this.add.text(recipeWidth - 55, 18, categoryNames[recipe.category] || recipe.category.toUpperCase(), {
                 fontSize: '9px',
                 color: `#${(categoryColors[recipe.category] || 0xffffff).toString(16).padStart(6, '0')}`,
                 fontFamily: 'Courier New, monospace'
@@ -333,7 +338,7 @@ export default class CraftingScene extends Phaser.Scene {
         const y = this.cameras.main.height / 2 - 140;
 
         // 标签
-        const label = this.add.text(x, y - 25, 'MATERIALS REQUIRED', {
+        const label = this.add.text(x, y - 25, '所需材料', {
             fontSize: '14px',
             fontStyle: 'bold',
             color: '#00ffff',
@@ -344,7 +349,7 @@ export default class CraftingScene extends Phaser.Scene {
         this.materialsContainer = this.add.container(x, y);
 
         // 提示文字
-        const hint = this.add.text(120, 60, 'Select a recipe to view materials', {
+        const hint = this.add.text(120, 60, '选择配方查看所需材料', {
             fontSize: '12px',
             color: '#666677',
             fontFamily: 'Courier New, monospace'
@@ -360,7 +365,7 @@ export default class CraftingScene extends Phaser.Scene {
         this.materialsContainer.removeAll(true);
 
         if (!this.selectedRecipe) {
-            const hint = this.add.text(120, 60, 'Select a recipe to view materials', {
+            const hint = this.add.text(120, 60, '选择配方查看所需材料', {
                 fontSize: '12px',
                 color: '#666677',
                 fontFamily: 'Courier New, monospace'
@@ -374,7 +379,7 @@ export default class CraftingScene extends Phaser.Scene {
         
         if (materials.length === 0) {
             // 无需材料（基础武器）
-            const freeText = this.add.text(120, 40, '✓ NO MATERIALS REQUIRED', {
+            const freeText = this.add.text(120, 40, '✓ 无需材料', {
                 fontSize: '14px',
                 fontStyle: 'bold',
                 color: '#44ff44',
@@ -383,7 +388,7 @@ export default class CraftingScene extends Phaser.Scene {
             freeText.setOrigin(0.5);
             this.materialsContainer.add(freeText);
 
-            const hintText = this.add.text(120, 70, 'Free to craft!', {
+            const hintText = this.add.text(120, 70, '可直接合成！', {
                 fontSize: '12px',
                 color: '#888899',
                 fontFamily: 'Courier New, monospace'
@@ -446,7 +451,7 @@ export default class CraftingScene extends Phaser.Scene {
         const y = this.cameras.main.height / 2 + 60;
 
         // 标签
-        const label = this.add.text(x, y - 25, 'RESULT PREVIEW', {
+        const label = this.add.text(x, y - 25, '合成结果', {
             fontSize: '14px',
             fontStyle: 'bold',
             color: '#00ffff',
@@ -464,7 +469,7 @@ export default class CraftingScene extends Phaser.Scene {
         this.resultPreview.removeAll(true);
 
         if (!this.selectedRecipe) {
-            const hint = this.add.text(120, 40, 'No recipe selected', {
+            const hint = this.add.text(120, 40, '未选择配方', {
                 fontSize: '12px',
                 color: '#666677',
                 fontFamily: 'Courier New, monospace'
@@ -550,7 +555,7 @@ export default class CraftingScene extends Phaser.Scene {
         this.craftButton.add(bg);
 
         // 按钮文字
-        const text = this.add.text(75, 25, 'CRAFT', {
+        const text = this.add.text(75, 25, '合成', {
             fontSize: '18px',
             fontStyle: 'bold',
             color: '#666688',
@@ -601,7 +606,9 @@ export default class CraftingScene extends Phaser.Scene {
      * 检查是否可以合成
      */
     private canCraftRecipe(recipe: CraftingRecipe): boolean {
+        if (!this.player) return false;
         const ownedWeapons = this.player.getOwnedWeapons();
+        if (!ownedWeapons) return false;
 
         for (const material of recipe.ingredients) {
             const count = ownedWeapons.filter(w => w.id === material.itemId).length;
@@ -617,7 +624,7 @@ export default class CraftingScene extends Phaser.Scene {
     private attemptCraft(): void {
         if (!this.selectedRecipe) return;
         if (!this.canCraftRecipe(this.selectedRecipe)) {
-            this.showMessage('Not enough materials!', 0xff4444);
+            this.showMessage('材料不足！', 0xff4444);
             return;
         }
 
@@ -645,7 +652,7 @@ export default class CraftingScene extends Phaser.Scene {
         const resultWeapon = getWeaponById(recipe.result.itemId);
         if (resultWeapon) {
             this.player.equipWeapon(resultWeapon);
-            this.showMessage(`Crafted: ${resultWeapon.name}!`, 0x44ff44);
+            this.showMessage(`合成成功: ${resultWeapon.name}！`, 0x44ff44);
         }
 
         // 刷新显示
@@ -734,7 +741,7 @@ export default class CraftingScene extends Phaser.Scene {
      */
     private createKeyHints(): void {
         const hint = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2 + 210, 
-            'ESC to close | Click recipe to select | Click CRAFT to create', {
+            'ESC 关闭 | 点击配方选择 | 点击合成按钮制作', {
             fontSize: '11px',
             color: '#666677',
             fontFamily: 'Courier New, monospace'
@@ -746,9 +753,21 @@ export default class CraftingScene extends Phaser.Scene {
      * 关闭场景
      */
     private closeScene(): void {
+        // 调用关闭回调
         if (this.onCloseCallback) {
             this.onCloseCallback();
         }
+        
+        // 确保游戏场景的物理引擎已恢复
+        const gameScene = this.scene.get('GameScene') as any;
+        if (gameScene && gameScene.physics) {
+            gameScene.physics.resume();
+        }
+        
+        // 恢复游戏场景
+        this.scene.resume('GameScene');
+        
+        // 停止合成场景
         this.scene.stop();
     }
 }

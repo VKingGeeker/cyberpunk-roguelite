@@ -24,6 +24,7 @@ export interface TimeSnapshot {
         weapons: string[];
         activeWeaponSlot: number;
         skills: string[];
+        ownedSkills: [string, { level: number; cooldownEndTime: number }][]; // 完整技能数据
         stats: {
             attack: number;
             defense: number;
@@ -230,15 +231,16 @@ export class TimeRewindSystem {
 
     /**
      * 应用回溯惩罚
+     * 注意：此方法会修改传入的 playerData 对象
      */
     public applyPenalty(playerData: TimeSnapshot['playerData']): TimeSnapshot['playerData'] {
         const penalty = TIME_REWIND_CONFIG.rewindPenalty;
         
-        // 应用HP损失
+        // 应用HP损失（最低保留1点HP）
         const hpLoss = Math.floor(playerData.maxHp * (penalty.hpLossPercent / 100));
         playerData.hp = Math.max(1, playerData.hp - hpLoss);
         
-        // 应用经验损失
+        // 应用经验损失（最低保留0点经验）
         const expLoss = Math.floor(playerData.experience * (penalty.experienceLossPercent / 100));
         playerData.experience = Math.max(0, playerData.experience - expLoss);
 
@@ -290,6 +292,24 @@ export class TimeRewindSystem {
         if (this.autoSnapshotTimer) {
             this.autoSnapshotTimer.destroy();
             this.autoSnapshotTimer = null;
+        }
+    }
+
+    /**
+     * 暂停自动快照
+     */
+    public pause(): void {
+        if (this.autoSnapshotTimer) {
+            this.autoSnapshotTimer.paused = true;
+        }
+    }
+
+    /**
+     * 恢复自动快照
+     */
+    public resume(): void {
+        if (this.autoSnapshotTimer) {
+            this.autoSnapshotTimer.paused = false;
         }
     }
 

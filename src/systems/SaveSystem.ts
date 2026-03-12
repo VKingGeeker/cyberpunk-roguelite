@@ -17,6 +17,7 @@ export interface SaveData {
         ownedSkills: Map<string, { level: number; cooldownEndTime: number }>;
         weaponSlots: (string | null)[];
         activeWeaponSlot: number;
+        attributeBoosts?: Record<string, number[]>; // 永久属性加成
     };
     stats: {
         attack: number;
@@ -156,16 +157,22 @@ export class SaveSystem {
     /**
      * 自动保存
      */
-    public static autoSave(data: SaveData): void {
-        const autoSaveKey = this.SAVE_KEY_PREFIX + 'auto';
-        
-        data.version = this.CURRENT_VERSION;
-        data.timestamp = Date.now();
-        
-        const serializedData = this.serializeSaveData(data);
-        localStorage.setItem(autoSaveKey, JSON.stringify(serializedData));
-        
-        console.log('[SaveSystem] 自动保存完成');
+    public static autoSave(data: SaveData): boolean {
+        try {
+            const autoSaveKey = this.SAVE_KEY_PREFIX + 'auto';
+            
+            data.version = this.CURRENT_VERSION;
+            data.timestamp = Date.now();
+            
+            const serializedData = this.serializeSaveData(data);
+            localStorage.setItem(autoSaveKey, JSON.stringify(serializedData));
+            
+            console.log('[SaveSystem] 自动保存完成');
+            return true;
+        } catch (error) {
+            console.error('[SaveSystem] 自动保存失败:', error);
+            return false;
+        }
     }
 
     /**
@@ -213,7 +220,9 @@ export class SaveSystem {
             ...data,
             player: {
                 ...data.player,
-                ownedSkills: Array.from(data.player.ownedSkills.entries())
+                ownedSkills: Array.from(data.player.ownedSkills.entries()),
+                // attributeBoosts 已经是普通对象，直接保留
+                attributeBoosts: data.player.attributeBoosts || {}
             }
         };
     }

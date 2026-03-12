@@ -9,12 +9,19 @@ import { GAME_CONFIG } from './core/Config';
 // 场景导入
 import BootScene from './scenes/BootScene';
 import MenuScene from './scenes/MenuScene';
+import ClassSelectScene from './scenes/ClassSelectScene';
 import GameScene from './scenes/GameScene';
 import UIScene from './scenes/UIScene';
 import SkillSelectScene from './scenes/SkillSelectScene';
+import SkillTreeScene from './scenes/SkillTreeScene';
 import CraftingScene from './scenes/CraftingScene';
 import SaveScene from './scenes/SaveScene';
 import TimeRewindScene from './scenes/TimeRewindScene';
+import PauseScene from './scenes/PauseScene';
+import EventScene from './scenes/EventScene';
+import LobbyScene from './scenes/LobbyScene';
+// 测试场景（仅开发环境）
+import TestMenuScene from './scenes/TestMenuScene';
 
 /**
  * 游戏主类
@@ -32,6 +39,14 @@ class CyberpunkRogueliteGame {
      * 初始化游戏
      */
     private initGame(): void {
+        // 基础场景列表
+        const scenes: any[] = [BootScene, MenuScene, ClassSelectScene, GameScene, UIScene, SkillSelectScene, SkillTreeScene, CraftingScene, SaveScene, TimeRewindScene, PauseScene, EventScene, LobbyScene];
+        
+        // 仅在开发环境添加测试场景
+        if (import.meta.env.DEV) {
+            scenes.push(TestMenuScene);
+        }
+        
         this.game = new Phaser.Game({
             type: Phaser.AUTO,
             width: GAME_CONFIG.width,
@@ -45,7 +60,7 @@ class CyberpunkRogueliteGame {
                     debug: false
                 }
             },
-            scene: [BootScene, MenuScene, GameScene, UIScene, SkillSelectScene, CraftingScene, SaveScene, TimeRewindScene],
+            scene: scenes,
             callbacks: {
                 preBoot: () => {
                     this.onPreBoot();
@@ -53,7 +68,34 @@ class CyberpunkRogueliteGame {
                 postBoot: () => {
                     this.onPostBoot();
                 }
+            },
+            scale: {
+                mode: Phaser.Scale.FIT,
+                autoCenter: Phaser.Scale.CENTER_BOTH,
+                width: GAME_CONFIG.width,
+                height: GAME_CONFIG.height,
+                // 关键：确保全屏时保持清晰度
+                resizeInterval: 100,
+                // 缩放策略：保持像素清晰 (1 = 不缩放)
+                zoom: 1
+            },
+            render: {
+                // 优化渲染清晰度
+                antialias: true,
+                antialiasGL: true,
+                pixelArt: false,
+                roundPixels: false,
+                powerPreference: 'high-performance'
+            },
+            dom: {
+                createContainer: true
             }
+        });
+        
+        // 监听窗口大小变化，动态调整游戏尺寸
+        window.addEventListener('resize', () => {
+            // 使用 resize 方法让 Phaser 自动处理缩放
+            this.game.scale.resize(window.innerWidth, window.innerHeight);
         });
     }
 

@@ -5,6 +5,7 @@
 
 import Phaser from 'phaser';
 import { GAME_CONFIG } from '../core/Config';
+import { SoundType } from '../core/Types';
 import Player from '../entities/Player';
 
 export default class UIScene extends Phaser.Scene {
@@ -15,6 +16,8 @@ export default class UIScene extends Phaser.Scene {
     private healthBarBg!: Phaser.GameObjects.Graphics;
     private healthText!: Phaser.GameObjects.Text;
     private skillIcons: Phaser.GameObjects.Image[] = [];
+    private skillUIElements: Phaser.GameObjects.GameObject[] = []; // 追踪所有技能UI元素
+    private skillCooldownMasks: Map<string, Phaser.GameObjects.Graphics> = new Map(); // 技能冷却遮罩
     private experienceBar!: Phaser.GameObjects.Graphics;
     private experienceBarBg!: Phaser.GameObjects.Graphics;
     private levelText!: Phaser.GameObjects.Text;
@@ -23,6 +26,14 @@ export default class UIScene extends Phaser.Scene {
     // 帮助面板
     private helpPanel: Phaser.GameObjects.Container | null = null;
     private isHelpVisible: boolean = false;
+    
+    // 暂停按钮
+    private pauseBtnBg!: Phaser.GameObjects.Graphics;
+    private pauseBtnIcon!: Phaser.GameObjects.Text;
+    
+    // 音量控制面板
+    private volumePanel: Phaser.GameObjects.Container | null = null;
+    private isVolumePanelVisible: boolean = false;
     
     // 霓虹效果
     private scanlineOverlay!: Phaser.GameObjects.Graphics;
@@ -46,15 +57,25 @@ export default class UIScene extends Phaser.Scene {
         this.createSkillBar();
         this.createExperienceBar();
         this.createKillCounter();
+        this.createPauseButton();
+        this.createVolumeButton();
         this.createHelpButton();
         this.createCyberpunkDecorations();
+
+        // 仅在开发环境创建测试菜单按钮
+        if (import.meta.env.DEV) {
+            this.createTestMenuButton();
+        }
 
         // 监听玩家事件
         this.scene.get('GameScene').events.on('updateHealth', this.updateHealth, this);
         this.scene.get('GameScene').events.on('updateExperience', this.updateExperience, this);
         this.scene.get('GameScene').events.on('skill-changed', this.updateSkillDisplay, this);
         this.scene.get('GameScene').events.on('updateKillCount', this.updateKillCount, this);
-        this.scene.get('GameScene').events.on('weapon-changed', this.updateWeaponDisplay, this);
+        this.scene.get('GameScene').events.on('updateWeaponDisplay', this.updateWeaponDisplay, this);
+        
+        // 监听游戏场景的update事件来更新技能冷却遮罩
+        this.scene.get('GameScene').events.on('update', this.updateSkillCooldowns, this);
     }
 
     /**
@@ -98,7 +119,7 @@ export default class UIScene extends Phaser.Scene {
         this.healthBar.fillRoundedRect(x + 2, y + 2, width - 4, height - 4, 3);
 
         // HP 标签
-        const hpLabel = this.add.text(x, y - 20, 'HP', {
+        const hpLabel = this.add.text(x, y - 20, '生命', {
             fontSize: '14px',
             fontStyle: 'bold',
             color: '#ff0044',
@@ -150,7 +171,7 @@ export default class UIScene extends Phaser.Scene {
         bg.strokeRoundedRect(x - 10, y - size/2 - 20, 190, size + 50, 8);
 
         // 标题
-        const title = this.add.text(x + 75, y - size/2 - 15, 'WEAPON', {
+        const title = this.add.text(x + 75, y - size/2 - 15, '武器', {
             fontSize: '12px',
             fontStyle: 'bold',
             color: '#ff00ff',
@@ -276,7 +297,7 @@ export default class UIScene extends Phaser.Scene {
         bg.strokeRoundedRect(startX - 10, y - size/2 - 15, size * maxSlots + 15 * (maxSlots - 1) + 20, size + 45, 8);
 
         // 标题
-        const title = this.add.text(startX + (size * maxSlots + 15 * (maxSlots - 1)) / 2, y - size/2 - 10, 'SKILLS', {
+        const title = this.add.text(startX + (size * maxSlots + 15 * (maxSlots - 1)) / 2, y - size/2 - 10, '技能', {
             fontSize: '12px',
             fontStyle: 'bold',
             color: '#00ffff',
@@ -290,6 +311,7 @@ export default class UIScene extends Phaser.Scene {
 
     /**
      * 更新技能显示
+     * 修复：正确清除所有技能UI元素，包括背景和文字
      */
     public updateSkillDisplay(): void {
         if (!this.player) return;
@@ -301,11 +323,17 @@ export default class UIScene extends Phaser.Scene {
         const y = this.cameras.main.height - 130;
         const size = GAME_CONFIG.ui.skillIconSize;
 
-        // 清除旧图标
-        if (this.skillIcons && this.skillIcons.length > 0) {
-            this.skillIcons.forEach(icon => icon.destroy());
-        }
+        // 清除所有旧的技能UI元素（图标、背景、文字）
+        this.skillUIElements.forEach(element => element.destroy());
+        this.skillUIElements = [];
+        
+        // 清除图标数组
+        this.skillIcons.forEach(icon => icon.destroy());
         this.skillIcons = [];
+        
+        // 清除旧的冷却遮罩
+        this.skillCooldownMasks.forEach(mask => mask.destroy());
+        this.skillCooldownMasks.clear();
 
         // 技能名称到图标键的映射
         const iconMap: Record<string, string> = {
@@ -387,6 +415,7 @@ export default class UIScene extends Phaser.Scene {
             slotBg.fillRoundedRect(x, y - size/2, size, size, 6);
             slotBg.lineStyle(2, color, 0.8);
             slotBg.strokeRoundedRect(x, y - size/2, size, size, 6);
+            this.skillUIElements.push(slotBg); // 追踪背景
 
             // 等级指示器 - 显示在图标内部底部
             const level = data.skill.level;
@@ -404,6 +433,14 @@ export default class UIScene extends Phaser.Scene {
             const icon = this.add.image(x + size/2, y, iconKey);
             icon.setDisplaySize(size - 12, size - 12);
             icon.setOrigin(0.5);
+            this.skillIcons.push(icon);
+            this.skillUIElements.push(icon); // 追踪图标
+
+            // 创建冷却遮罩 - 扇形遮罩
+            const cooldownMask = this.add.graphics();
+            cooldownMask.fillStyle(0x000000, 0.7);
+            this.skillCooldownMasks.set(skillId, cooldownMask);
+            this.skillUIElements.push(cooldownMask);
 
             // 技能名称
             const nameText = this.add.text(x + size/2, y + size/2 + 8, nameMap[skillId] || '技能', {
@@ -413,8 +450,8 @@ export default class UIScene extends Phaser.Scene {
                 fontFamily: 'Courier New, monospace'
             });
             nameText.setOrigin(0.5);
+            this.skillUIElements.push(nameText); // 追踪文字
 
-            this.skillIcons.push(icon);
             index++;
         });
     }
@@ -468,7 +505,7 @@ export default class UIScene extends Phaser.Scene {
         this.levelText.setDepth(10);
 
         // EXP 标签
-        const expLabel = this.add.text(10, y + height + 5, 'EXP', {
+        const expLabel = this.add.text(10, y + height + 5, '经验', {
             fontSize: '10px',
             color: '#ffaa00',
             fontFamily: 'Courier New, monospace'
@@ -477,9 +514,11 @@ export default class UIScene extends Phaser.Scene {
 
     /**
      * 创建击杀计数器 - 赛博朋克风格
+     * 位置调整：放在暂停按钮左侧，避免与帮助按钮重叠
      */
     private createKillCounter(): void {
-        const x = this.cameras.main.width - 20;
+        // 调整位置：放在暂停按钮（width - 110）的左侧
+        const x = this.cameras.main.width - 180;
         const y = 50;
 
         // 背景
@@ -497,7 +536,7 @@ export default class UIScene extends Phaser.Scene {
         skull.setOrigin(0.5);
 
         // 击杀文字
-        this.killText = this.add.text(x - 10, y + 12, 'KILLS: 0', {
+        this.killText = this.add.text(x - 10, y + 12, '击杀: 0', {
             fontSize: '16px',
             fontStyle: 'bold',
             color: '#ff6600',
@@ -622,7 +661,7 @@ export default class UIScene extends Phaser.Scene {
      * 更新击杀数
      */
     public updateKillCount(count: number): void {
-        this.killText.setText(`KILLS: ${count}`);
+        this.killText.setText(`击杀: ${count}`);
         
         // 击杀时闪烁效果
         this.tweens.add({
@@ -630,6 +669,500 @@ export default class UIScene extends Phaser.Scene {
             scale: { from: 1.3, to: 1 },
             duration: 200,
             ease: 'Back.out'
+        });
+    }
+
+    /**
+     * 更新技能冷却遮罩
+     * 根据技能冷却时间动态绘制扇形遮罩
+     * 优化版本：添加边缘发光效果，提高视觉对比度，确保60fps流畅度
+     */
+    private updateSkillCooldowns(time: number, delta: number): void {
+        if (!this.player) return;
+        
+        const ownedSkills = this.player.getOwnedSkills();
+        if (!ownedSkills || ownedSkills.size === 0) return;
+
+        if (!this.cameras || !this.cameras.main) return;
+
+        const startX = 20;
+        const y = this.cameras.main.height - 130;
+        const size = GAME_CONFIG.ui.skillIconSize;
+
+        let index = 0;
+        ownedSkills.forEach((data, skillId) => {
+            if (index >= 6) return;
+
+            const x = startX + index * (size + 15);
+            const cooldownMask = this.skillCooldownMasks.get(skillId);
+            
+            if (cooldownMask) {
+                cooldownMask.clear();
+                
+                const currentTime = this.scene.get('GameScene').time.now;
+                const cooldownEndTime = data.cooldownEndTime;
+                const cooldown = data.skill.cooldown;
+                
+                // 计算冷却进度（0 = 就绪，1 = 刚开始冷却）
+                let cooldownProgress = 0;
+                if (cooldownEndTime > currentTime) {
+                    // 还在冷却中
+                    const remainingTime = cooldownEndTime - currentTime;
+                    cooldownProgress = remainingTime / (cooldown * 1000);
+                }
+                
+                // 绘制扇形遮罩
+                if (cooldownProgress > 0) {
+                    // 扇形从顶部开始，顺时针方向覆盖
+                    // startAngle: -Math.PI/2 (顶部)
+                    // endAngle: 根据冷却进度计算
+                    const startAngle = -Math.PI / 2; // 从顶部开始
+                    const endAngle = startAngle + (Math.PI * 2 * cooldownProgress); // 顺时针方向
+                    
+                    const centerX = x + size / 2;
+                    const centerY = y;
+                    const radius = size / 2;
+                    
+                    // 绘制多层效果，增强视觉对比度
+                    // 第一层：深色半透明背景
+                    cooldownMask.fillStyle(0x000000, 0.75);
+                    cooldownMask.beginPath();
+                    cooldownMask.moveTo(centerX, centerY);
+                    cooldownMask.arc(centerX, centerY, radius, startAngle, endAngle, false);
+                    cooldownMask.closePath();
+                    cooldownMask.fillPath();
+                    
+                    // 第二层：边缘发光效果（青色边缘）
+                    cooldownMask.lineStyle(2, 0x00ffff, 0.8);
+                    cooldownMask.beginPath();
+                    cooldownMask.arc(centerX, centerY, radius - 1, startAngle, endAngle, false);
+                    cooldownMask.strokePath();
+                    
+                    // 第三层：扇形边缘高亮线
+                    if (cooldownProgress > 0.01) {
+                        const edgeAngle = endAngle;
+                        const edgeX = centerX + Math.cos(edgeAngle) * radius;
+                        const edgeY = centerY + Math.sin(edgeAngle) * radius;
+                        
+                        cooldownMask.lineStyle(3, 0x00ffff, 1);
+                        cooldownMask.beginPath();
+                        cooldownMask.moveTo(centerX, centerY);
+                        cooldownMask.lineTo(edgeX, edgeY);
+                        cooldownMask.strokePath();
+                    }
+                    
+                    // 添加冷却时间文字显示
+                    const remainingSeconds = Math.ceil((cooldownEndTime - currentTime) / 1000);
+                    if (remainingSeconds > 0) {
+                        // 检查是否已有冷却时间文字
+                        let cooldownText = cooldownMask.getData('cooldownText') as Phaser.GameObjects.Text;
+                        if (!cooldownText) {
+                            cooldownText = this.add.text(centerX, centerY, '', {
+                                fontSize: '18px',
+                                fontStyle: 'bold',
+                                color: '#ffffff',
+                                fontFamily: 'Courier New, monospace',
+                                stroke: '#00ffff',
+                                strokeThickness: 3
+                            });
+                            cooldownText.setOrigin(0.5);
+                            cooldownText.setDepth(100);
+                            cooldownMask.setData('cooldownText', cooldownText);
+                            this.skillUIElements.push(cooldownText);
+                        }
+                        cooldownText.setText(remainingSeconds.toString());
+                        cooldownText.setVisible(true);
+                        
+                        // 添加脉冲动画效果
+                        const pulseScale = 1 + Math.sin(currentTime * 0.005) * 0.1;
+                        cooldownText.setScale(pulseScale);
+                    }
+                } else {
+                    // 技能就绪，隐藏冷却时间文字
+                    const cooldownText = cooldownMask.getData('cooldownText') as Phaser.GameObjects.Text;
+                    if (cooldownText) {
+                        cooldownText.setVisible(false);
+                    }
+                }
+            }
+
+            index++;
+        });
+    }
+
+    /**
+     * 创建暂停按钮 - 右上角（赛博朋克风格图形化按钮）
+     */
+    private createPauseButton(): void {
+        const width = this.cameras.main.width;
+        const btnX = width - 110;
+        const btnY = 50;
+
+        // 使用预生成的暂停按钮纹理
+        const pauseBtn = this.add.image(btnX, btnY, 'pause_button');
+        pauseBtn.setDisplaySize(50, 50);
+        pauseBtn.setInteractive({ useHandCursor: true });
+
+        // 悬停效果
+        pauseBtn.on('pointerover', () => {
+            pauseBtn.setScale(1.15);
+            pauseBtn.setTint(0xffcc44);
+        });
+
+        pauseBtn.on('pointerout', () => {
+            pauseBtn.setScale(1);
+            pauseBtn.clearTint();
+        });
+
+        pauseBtn.on('pointerdown', () => {
+            // 点击时缩小效果
+            this.tweens.add({
+                targets: pauseBtn,
+                scale: 0.9,
+                duration: 50,
+                yoyo: true,
+                onComplete: () => {
+                    this.pauseGame();
+                }
+            });
+        });
+
+        // 脉冲动画
+        this.tweens.add({
+            targets: pauseBtn,
+            alpha: { from: 0.85, to: 1 },
+            duration: 800,
+            yoyo: true,
+            repeat: -1
+        });
+    }
+
+    /**
+     * 暂停游戏
+     */
+    private pauseGame(): void {
+        // 通知GameScene暂停游戏
+        this.scene.get('GameScene').events.emit('pause-game');
+    }
+
+    /**
+     * 创建音量控制按钮 - 右上角（暂停按钮右侧）
+     */
+    private createVolumeButton(): void {
+        const width = this.cameras.main.width;
+        const btnX = width - 165;
+        const btnY = 50;
+
+        // 按钮背景
+        const btnBg = this.add.graphics();
+        btnBg.fillStyle(0x0a0a1a, 0.9);
+        btnBg.fillCircle(btnX, btnY, 22);
+        btnBg.lineStyle(2, 0xff00ff, 1);
+        btnBg.strokeCircle(btnX, btnY, 22);
+
+        // 音量图标
+        const volumeIcon = this.add.text(btnX, btnY, '♪', {
+            fontSize: '24px',
+            fontStyle: 'bold',
+            color: '#ff00ff',
+            fontFamily: 'Courier New, monospace'
+        });
+        volumeIcon.setOrigin(0.5);
+
+        // 交互区域
+        const hitArea = this.add.circle(btnX, btnY, 22, 0x000000, 0);
+        hitArea.setInteractive({ useHandCursor: true });
+
+        // 悬停效果
+        hitArea.on('pointerover', () => {
+            btnBg.clear();
+            btnBg.fillStyle(0x1a1a2e, 1);
+            btnBg.fillCircle(btnX, btnY, 22);
+            btnBg.lineStyle(3, 0xff00ff, 1);
+            btnBg.strokeCircle(btnX, btnY, 22);
+            volumeIcon.setScale(1.2);
+            
+            // 播放悬停音效
+            this.scene.get('GameScene').events.emit('play-sound', SoundType.UI_HOVER);
+        });
+
+        hitArea.on('pointerout', () => {
+            btnBg.clear();
+            btnBg.fillStyle(0x0a0a1a, 0.9);
+            btnBg.fillCircle(btnX, btnY, 22);
+            btnBg.lineStyle(2, 0xff00ff, 1);
+            btnBg.strokeCircle(btnX, btnY, 22);
+            volumeIcon.setScale(1);
+        });
+
+        hitArea.on('pointerdown', () => {
+            // 播放点击音效
+            this.scene.get('GameScene').events.emit('play-sound', SoundType.UI_CLICK);
+            this.toggleVolumePanel();
+        });
+
+        // 脉冲动画
+        this.tweens.add({
+            targets: [btnBg, volumeIcon],
+            alpha: { from: 0.85, to: 1 },
+            duration: 1000,
+            yoyo: true,
+            repeat: -1
+        });
+    }
+
+    /**
+     * 切换音量面板显示
+     */
+    private toggleVolumePanel(): void {
+        if (this.isVolumePanelVisible) {
+            this.hideVolumePanel();
+        } else {
+            this.showVolumePanel();
+        }
+    }
+
+    /**
+     * 显示音量面板
+     */
+    private showVolumePanel(): void {
+        if (this.volumePanel) return;
+
+        this.isVolumePanelVisible = true;
+        const width = this.cameras.main.width;
+        const panelX = width - 120;
+        const panelY = 120;
+
+        // 创建面板容器
+        this.volumePanel = this.add.container(panelX, panelY);
+        this.volumePanel.setDepth(2000);
+
+        // 面板背景
+        const panelWidth = 200;
+        const panelHeight = 220;
+        const panelBg = this.add.graphics();
+        panelBg.fillStyle(0x0a0a1a, 0.95);
+        panelBg.fillRoundedRect(-panelWidth / 2, -panelHeight / 2, panelWidth, panelHeight, 10);
+        panelBg.lineStyle(2, 0xff00ff, 1);
+        panelBg.strokeRoundedRect(-panelWidth / 2, -panelHeight / 2, panelWidth, panelHeight, 10);
+        this.volumePanel.add(panelBg);
+
+        // 标题
+        const title = this.add.text(0, -panelHeight / 2 + 25, '音量设置', {
+            fontSize: '18px',
+            fontStyle: 'bold',
+            color: '#ff00ff',
+            fontFamily: 'Courier New, monospace'
+        });
+        title.setOrigin(0.5);
+        this.volumePanel.add(title);
+
+        // 获取当前音量
+        const gameScene = this.scene.get('GameScene') as any;
+        const audioManager = gameScene.getAudioManager?.();
+        const volumes = audioManager?.getVolumes() || { master: 0.7, music: 0.5, sfx: 0.8 };
+
+        // 主音量滑块
+        this.createVolumeSlider(this.volumePanel, '主音量', volumes.master, -60, (value: number) => {
+            this.scene.get('GameScene').events.emit('volume-changed', {
+                master: value,
+                music: volumes.music,
+                sfx: volumes.sfx
+            });
+            volumes.master = value;
+        });
+
+        // 音乐音量滑块
+        this.createVolumeSlider(this.volumePanel, '音乐', volumes.music, 0, (value: number) => {
+            this.scene.get('GameScene').events.emit('volume-changed', {
+                master: volumes.master,
+                music: value,
+                sfx: volumes.sfx
+            });
+            volumes.music = value;
+        });
+
+        // 音效音量滑块
+        this.createVolumeSlider(this.volumePanel, '音效', volumes.sfx, 60, (value: number) => {
+            this.scene.get('GameScene').events.emit('volume-changed', {
+                master: volumes.master,
+                music: volumes.music,
+                sfx: value
+            });
+            volumes.sfx = value;
+        });
+
+        // 静音按钮
+        const muteBtnY = panelHeight / 2 - 35;
+        const muteBtnBg = this.add.graphics();
+        muteBtnBg.fillStyle(0x1a1a2e, 1);
+        muteBtnBg.fillRoundedRect(-50, muteBtnY - 15, 100, 30, 6);
+        muteBtnBg.lineStyle(2, 0x00ffff, 1);
+        muteBtnBg.strokeRoundedRect(-50, muteBtnY - 15, 100, 30, 6);
+        this.volumePanel.add(muteBtnBg);
+
+        const muteBtnText = this.add.text(0, muteBtnY, audioManager?.getIsMuted?.() ? '取消静音' : '静音', {
+            fontSize: '14px',
+            fontStyle: 'bold',
+            color: '#00ffff',
+            fontFamily: 'Courier New, monospace'
+        });
+        muteBtnText.setOrigin(0.5);
+        this.volumePanel.add(muteBtnText);
+
+        const muteHitArea = this.add.rectangle(0, muteBtnY, 100, 30, 0x000000, 0);
+        muteHitArea.setInteractive({ useHandCursor: true });
+        this.volumePanel.add(muteHitArea);
+
+        muteHitArea.on('pointerover', () => {
+            muteBtnBg.clear();
+            muteBtnBg.fillStyle(0x00ffff, 0.3);
+            muteBtnBg.fillRoundedRect(-50, muteBtnY - 15, 100, 30, 6);
+            muteBtnBg.lineStyle(2, 0x00ffff, 1);
+            muteBtnBg.strokeRoundedRect(-50, muteBtnY - 15, 100, 30, 6);
+        });
+
+        muteHitArea.on('pointerout', () => {
+            muteBtnBg.clear();
+            muteBtnBg.fillStyle(0x1a1a2e, 1);
+            muteBtnBg.fillRoundedRect(-50, muteBtnY - 15, 100, 30, 6);
+            muteBtnBg.lineStyle(2, 0x00ffff, 1);
+            muteBtnBg.strokeRoundedRect(-50, muteBtnY - 15, 100, 30, 6);
+        });
+
+        muteHitArea.on('pointerdown', () => {
+            this.scene.get('GameScene').events.emit('toggle-mute');
+            const isMuted = !audioManager?.getIsMuted?.();
+            muteBtnText.setText(isMuted ? '取消静音' : '静音');
+        });
+
+        // 入场动画
+        this.volumePanel.setAlpha(0);
+        this.volumePanel.setScale(0.8);
+        this.tweens.add({
+            targets: this.volumePanel,
+            alpha: 1,
+            scale: 1,
+            duration: 200,
+            ease: 'Back.out'
+        });
+    }
+
+    /**
+     * 创建音量滑块
+     */
+    private createVolumeSlider(
+        container: Phaser.GameObjects.Container,
+        label: string,
+        initialValue: number,
+        yOffset: number,
+        onChange: (value: number) => void
+    ): void {
+        // 标签
+        const labelText = this.add.text(-80, yOffset, label, {
+            fontSize: '12px',
+            color: '#aaaaaa',
+            fontFamily: 'Courier New, monospace'
+        });
+        labelText.setOrigin(0, 0.5);
+        container.add(labelText);
+
+        // 滑块背景
+        const sliderBg = this.add.graphics();
+        sliderBg.fillStyle(0x333344, 1);
+        sliderBg.fillRoundedRect(-30, yOffset - 5, 120, 10, 5);
+        container.add(sliderBg);
+
+        // 滑块填充
+        const sliderFill = this.add.graphics();
+        sliderFill.fillStyle(0xff00ff, 1);
+        sliderFill.fillRoundedRect(-30, yOffset - 5, 120 * initialValue, 10, 5);
+        container.add(sliderFill);
+
+        // 滑块手柄
+        const handleX = -30 + 120 * initialValue;
+        const handle = this.add.circle(handleX, yOffset, 8, 0xffffff, 1);
+        handle.setStrokeStyle(2, 0xff00ff, 1);
+        container.add(handle);
+
+        // 百分比文字
+        const percentText = this.add.text(95, yOffset, `${Math.round(initialValue * 100)}%`, {
+            fontSize: '11px',
+            color: '#ffffff',
+            fontFamily: 'Courier New, monospace'
+        });
+        percentText.setOrigin(0, 0.5);
+        container.add(percentText);
+
+        // 交互区域
+        const hitArea = this.add.rectangle(30, yOffset, 120, 20, 0x000000, 0);
+        hitArea.setInteractive({ useHandCursor: true });
+        container.add(hitArea);
+
+        // 拖拽逻辑
+        let isDragging = false;
+
+        hitArea.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+            isDragging = true;
+            this.updateSlider(pointer.x, pointer.y);
+        });
+
+        this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+            if (isDragging) {
+                this.updateSlider(pointer.x, pointer.y);
+            }
+        });
+
+        this.input.on('pointerup', () => {
+            isDragging = false;
+        });
+
+        const updateSlider = (pointerX: number, pointerY: number) => {
+            // 计算相对位置
+            const worldPoint = container.getWorldTransformMatrix();
+            const localX = (pointerX - worldPoint.tx) / worldPoint.scaleX;
+            
+            // 计算值 (0-1)
+            const value = Phaser.Math.Clamp((localX + 30) / 120, 0, 1);
+            
+            // 更新UI
+            sliderFill.clear();
+            sliderFill.fillStyle(0xff00ff, 1);
+            sliderFill.fillRoundedRect(-30, yOffset - 5, 120 * value, 10, 5);
+            
+            handle.setPosition(-30 + 120 * value, yOffset);
+            percentText.setText(`${Math.round(value * 100)}%`);
+            
+            // 回调
+            onChange(value);
+        };
+
+        // 存储更新函数以便在拖拽时使用
+        (container as any).updateSlider = updateSlider;
+        this.updateSlider = updateSlider.bind(this);
+    }
+
+    private updateSlider: (pointerX: number, pointerY: number) => void = () => {};
+
+    /**
+     * 隐藏音量面板
+     */
+    private hideVolumePanel(): void {
+        if (!this.volumePanel) return;
+
+        this.tweens.add({
+            targets: this.volumePanel,
+            alpha: 0,
+            scale: 0.8,
+            duration: 150,
+            ease: 'Back.in',
+            onComplete: () => {
+                if (this.volumePanel) {
+                    this.volumePanel.destroy();
+                    this.volumePanel = null;
+                }
+                this.isVolumePanelVisible = false;
+            }
         });
     }
 
@@ -686,6 +1219,77 @@ export default class UIScene extends Phaser.Scene {
     }
 
     /**
+     * 创建测试菜单按钮（仅开发环境）
+     */
+    private createTestMenuButton(): void {
+        const btnX = 50;
+        const btnY = 50;
+
+        // 按钮背景
+        const btnBg = this.add.graphics();
+        btnBg.fillStyle(0x0a0a1a, 0.9);
+        btnBg.fillRoundedRect(btnX - 40, btnY - 18, 80, 36, 6);
+        btnBg.lineStyle(2, 0xff00ff, 1);
+        btnBg.strokeRoundedRect(btnX - 40, btnY - 18, 80, 36, 6);
+
+        // 测试图标
+        const testIcon = this.add.text(btnX, btnY, 'TEST', {
+            fontSize: '14px',
+            fontStyle: 'bold',
+            color: '#ff00ff',
+            fontFamily: 'Courier New, monospace'
+        });
+        testIcon.setOrigin(0.5);
+
+        // 交互区域
+        const hitArea = this.add.rectangle(btnX, btnY, 80, 36, 0x000000, 0);
+        hitArea.setInteractive({ useHandCursor: true });
+
+        // 悬停效果
+        hitArea.on('pointerover', () => {
+            btnBg.clear();
+            btnBg.fillStyle(0x1a1a2e, 1);
+            btnBg.fillRoundedRect(btnX - 40, btnY - 18, 80, 36, 6);
+            btnBg.lineStyle(3, 0xff00ff, 1);
+            btnBg.strokeRoundedRect(btnX - 40, btnY - 18, 80, 36, 6);
+            testIcon.setScale(1.1);
+        });
+
+        hitArea.on('pointerout', () => {
+            btnBg.clear();
+            btnBg.fillStyle(0x0a0a1a, 0.9);
+            btnBg.fillRoundedRect(btnX - 40, btnY - 18, 80, 36, 6);
+            btnBg.lineStyle(2, 0xff00ff, 1);
+            btnBg.strokeRoundedRect(btnX - 40, btnY - 18, 80, 36, 6);
+            testIcon.setScale(1);
+        });
+
+        hitArea.on('pointerdown', () => {
+            this.openTestMenu();
+        });
+
+        // 脉冲动画
+        this.tweens.add({
+            targets: [btnBg, testIcon],
+            alpha: { from: 0.8, to: 1 },
+            duration: 1000,
+            yoyo: true,
+            repeat: -1
+        });
+    }
+
+    /**
+     * 打开测试菜单
+     */
+    private openTestMenu(): void {
+        // 暂停游戏场景
+        this.scene.get('GameScene').scene.pause();
+        
+        // 启动测试菜单场景
+        this.scene.launch('TestMenuScene', { player: this.player });
+    }
+
+    /**
      * 切换帮助面板显示
      */
     private toggleHelpPanel(): void {
@@ -718,7 +1322,7 @@ export default class UIScene extends Phaser.Scene {
 
         // 面板背景
         const panelWidth = 600;
-        const panelHeight = 500;
+        const panelHeight = 540;
         const panelBg = this.add.graphics();
         panelBg.fillStyle(0x0a0a1a, 0.98);
         panelBg.fillRoundedRect(-panelWidth / 2, -panelHeight / 2, panelWidth, panelHeight, 15);
@@ -727,7 +1331,7 @@ export default class UIScene extends Phaser.Scene {
         this.helpPanel.add(panelBg);
 
         // 标题
-        const title = this.add.text(0, -panelHeight / 2 + 30, '>> GAME HELP <<', {
+        const title = this.add.text(0, -panelHeight / 2 + 30, '>> 游戏帮助 <<', {
             fontSize: '32px',
             fontStyle: 'bold',
             color: '#00ffff',
@@ -740,16 +1344,17 @@ export default class UIScene extends Phaser.Scene {
 
         // 帮助内容
         const helpContent = [
-            { label: 'MOVEMENT', content: 'WASD or Arrow Keys' },
-            { label: 'ATTACK', content: 'Left Click / Space' },
-            { label: 'SWITCH WEAPON', content: '1 / 2 / 3 or Q' },
-            { label: 'CRAFTING', content: 'C Key' },
-            { label: 'QUICK SAVE', content: 'F5' },
-            { label: 'QUICK LOAD', content: 'F9' },
-            { label: 'SAVE MENU', content: 'Ctrl + S' },
-            { label: 'LOAD MENU', content: 'Ctrl + L' },
-            { label: 'TIME REWIND', content: 'T Key' },
-            { label: 'SKILL SLOTS', content: 'Max 6 Skills' }
+            { label: '移动', content: 'WASD 或 方向键' },
+            { label: '攻击', content: '鼠标左键 / 空格' },
+            { label: '切换武器', content: '1 / 2 / 3 或 Q' },
+            { label: '暂停', content: 'ESC 键' },
+            { label: '合成', content: 'C 键' },
+            { label: '快速存档', content: 'F5' },
+            { label: '快速读档', content: 'F9' },
+            { label: '存档菜单', content: 'Ctrl + S' },
+            { label: '读档菜单', content: 'Ctrl + L' },
+            { label: '时间回溯', content: 'T 键' },
+            { label: '技能槽位', content: '最多 6 个技能' }
         ];
 
         const startY = -panelHeight / 2 + 80;
@@ -784,7 +1389,7 @@ export default class UIScene extends Phaser.Scene {
 
         // 游戏提示
         const tipsY = startY + helpContent.length * 38 + 20;
-        const tipsTitle = this.add.text(0, tipsY, '--- TIPS ---', {
+        const tipsTitle = this.add.text(0, tipsY, '--- 游戏提示 ---', {
             fontSize: '18px',
             fontStyle: 'bold',
             color: '#ffff00',
@@ -794,10 +1399,10 @@ export default class UIScene extends Phaser.Scene {
         this.helpPanel.add(tipsTitle);
 
         const tips = [
-            '• Collect power-ups to gain XP and level up',
-            '• Skills auto-trigger when enemies are nearby',
-            '• Craft better gear from dropped materials',
-            '• Use time fragments to rewind time'
+            '• 收集能量道具获得经验值并升级',
+            '• 技能在敌人附近时自动触发',
+            '• 使用掉落材料合成更好的装备',
+            '• 使用时空碎片可以回溯时间'
         ];
 
         tips.forEach((tip, index) => {
@@ -819,7 +1424,7 @@ export default class UIScene extends Phaser.Scene {
         closeBtnBg.strokeRoundedRect(-60, closeBtnY - 18, 120, 36, 6);
         this.helpPanel.add(closeBtnBg);
 
-        const closeBtnText = this.add.text(0, closeBtnY, 'CLOSE', {
+        const closeBtnText = this.add.text(0, closeBtnY, '关闭', {
             fontSize: '18px',
             fontStyle: 'bold',
             color: '#ff0044',
@@ -903,10 +1508,19 @@ export default class UIScene extends Phaser.Scene {
             gameScene.events.off('updateExperience', this.updateExperience, this);
             gameScene.events.off('skill-changed', this.updateSkillDisplay, this);
             gameScene.events.off('updateKillCount', this.updateKillCount, this);
+            gameScene.events.off('update', this.updateSkillCooldowns, this);
         }
 
         // 清理技能图标
         this.skillIcons.forEach(icon => icon.destroy());
         this.skillIcons = [];
+        
+        // 清理技能UI元素
+        this.skillUIElements.forEach(element => element.destroy());
+        this.skillUIElements = [];
+        
+        // 清理冷却遮罩
+        this.skillCooldownMasks.forEach(mask => mask.destroy());
+        this.skillCooldownMasks.clear();
     }
 }

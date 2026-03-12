@@ -8,25 +8,82 @@ import Player from '../entities/Player';
 import Enemy from '../entities/Enemy';
 import PowerUp, { PowerUpType, PowerUpRarity } from '../entities/PowerUp';
 import TimeFragment from '../entities/TimeFragment';
-import { GAME_CONFIG } from '../core/Config';
-import { EnemyType } from '../core/Types';
+import Hologram from '../entities/Hologram';
+import Drone from '../entities/Drone';
+import { GAME_CONFIG, MULTIPLAYER_CONFIG } from '../core/Config';
+import { EnemyType, ClassType, EnemyRarity } from '../core/Types';
 import { getEnemyTemplate, rollLoot } from '../data/Enemies';
+import { EVENTS } from '../data/Events';
 import { TimeRewindSystem, TIME_REWIND_CONFIG } from '../systems/TimeRewindSystem';
+import { RandomEventSystem } from '../systems/RandomEventSystem';
+import { AudioManager } from '../systems/AudioManager';
+import { MultiplayerSystem, MultiplayerEvent, RemotePlayer } from '../systems/MultiplayerSystem';
+import { SoundType } from '../core/Types';
 
 export default class GameScene extends Phaser.Scene {
     private player!: Player;
     private enemies: Enemy[] = [];
     private powerUps: PowerUp[] = [];
     private timeFragments: TimeFragment[] = [];
+    private holograms: Hologram[] = []; // 全息幻影列表
+    private drones: Drone[] = []; // 无人机列表
     private timeElapsed: number = 0;
     private levelTime: number = GAME_CONFIG.level.duration;
     private spawnTimer!: Phaser.Time.TimerEvent;
     private powerUpTimer!: Phaser.Time.TimerEvent;
     private isGameOver: boolean = false;
+    private isPaused: boolean = false;
     private timeRewindSystem!: TimeRewindSystem;
+    private randomEventSystem!: RandomEventSystem;
+    private enemyPool: Enemy[] = []; // 敌人对象池
+    private currentSpawnInterval: number = 0; // 当前敌人生成间隔
+    private selectedClass: ClassType | undefined; // 选择的职业
+    
+    // 联机系统
+    private multiplayer: MultiplayerSystem | null = null;
+    private isMultiplayer: boolean = false;
+    private remotePlayers: Map<string, Phaser.GameObjects.Container> = new Map();
+    private difficultyMultiplier: number = 1.0;
+    private audioManager!: AudioManager;
 
     constructor() {
         super({ key: 'GameScene', active: false });
+    }
+
+    /**
+     * 初始化场景
+     */
+    init(data: any): void {
+        // 接收职业选择数据
+        if (data && data.selectedClass) {
+            this.selectedClass = data.selectedClass as ClassType;
+        }
+        
+        // 检查是否为联机模式（只有明确传入时才启用）
+        // 使用严格比较，确保只有明确传入时才启用联机模式
+        if (data && typeof data.multiplayer === 'boolean' && data.multiplayer === true) {
+            this.multiplayer = data.multiplayer;
+            this.isMultiplayer = true;
+        } else {
+            this.isMultiplayer = false;
+            this.multiplayer = null;
+        }
+        
+        // 检查联机游戏数据
+        if (data && data.multiplayerData) {
+            // 使用服务器提供的随机种子
+            const seed = data.multiplayerData.seed;
+            // 可以用种子初始化随机数生成器
+            console.log(`[GameScene] 联机游戏种子: ${seed}`);
+            
+            // 设置难度倍率
+            const playerCount = data.multiplayerData.players?.length || 1;
+            this.difficultyMultiplier = 1 + (playerCount - 1) * MULTIPLAYER_CONFIG.difficultyScaling.perPlayerBonus;
+            this.difficultyMultiplier = Math.min(
+                this.difficultyMultiplier,
+                MULTIPLAYER_CONFIG.difficultyScaling.maxMultiplier
+            );
+        }
     }
 
     /**
@@ -37,6 +94,9 @@ export default class GameScene extends Phaser.Scene {
         this.isGameOver = false;
         this.enemies = [];
         this.powerUps = [];
+        this.timeFragments = [];
+        this.holograms = [];
+        this.drones = [];
         this.timeElapsed = 0;
 
         // 创建地图
@@ -63,6 +123,9 @@ export default class GameScene extends Phaser.Scene {
 
         // 监听敌人被击败事件
         this.events.on('enemyDefeated', this.onEnemyDefeated, this);
+        
+        // 监听敌人超出边界事件
+        this.events.on('enemyOutOfBounds', this.onEnemyOutOfBounds, this);
 
         // 添加键盘监听 - 打开合成界面
         this.input.keyboard!.on('keydown-C', () => {
@@ -95,14 +158,57 @@ export default class GameScene extends Phaser.Scene {
             this.openTimeRewindScene();
         }, this);
 
+        // 添加键盘监听 - ESC键暂停功能
+        this.input.keyboard!.on('keydown-ESC', () => {
+            this.togglePause();
+        }, this);
+
+        // 添加键盘监听 - 测试菜单（仅开发环境，F12键）
+        if (import.meta.env.DEV) {
+            this.input.keyboard!.on('keydown-F12', (event: KeyboardEvent) => {
+                event.preventDefault();
+                this.openTestMenu();
+            }, this);
+        }
+
         // 监听时间回溯事件
         this.events.on('time-rewind', this.onTimeRewind, this);
+
+        // 监听全息幻影事件
+        this.events.on('hologram-spawned', this.onHologramSpawned, this);
+
+        // 监听无人机创建事件
+        this.events.on('drone-spawned', this.onDroneSpawned, this);
+        this.events.on('drone-destroyed', this.onDroneDestroyed, this);
+
+        // 监听职业能力系统召唤无人机事件（数据黑客职业）
+        this.events.on('summon-drone', this.onSummonDrone, this);
+
+        // 监听暂停/恢复事件
+        this.events.on('pause-game', this.pauseGame, this);
+        this.events.on('resume-game', this.resumeGame, this);
 
         // 初始化游戏时间
         this.data.set('gameTime', 0);
 
         // 初始化时间回溯系统
         this.initTimeRewindSystem();
+
+        // 初始化随机事件系统
+        this.initRandomEventSystem();
+
+        // 初始化音效系统
+        this.initAudioSystem();
+        
+        // 初始化联机系统
+        if (this.isMultiplayer && this.multiplayer) {
+            this.initMultiplayerSystem();
+        }
+
+        // 初始化测试系统（仅开发环境）
+        if (import.meta.env.DEV) {
+            this.initTestSystem();
+        }
     }
 
     /**
@@ -342,8 +448,8 @@ export default class GameScene extends Phaser.Scene {
         const startX = GAME_CONFIG.worldWidth / 2;
         const startY = GAME_CONFIG.worldHeight / 2;
 
-        // 创建玩家实体
-        this.player = new Player(this, startX, startY);
+        // 创建玩家实体（传入选择的职业）
+        this.player = new Player(this, startX, startY, this.selectedClass);
 
         // 设置玩家在世界边界内
         const body = this.player.body as Phaser.Physics.Arcade.Body;
@@ -487,10 +593,17 @@ export default class GameScene extends Phaser.Scene {
 
     /**
      * 启动敌人持续生成器
+     * 使用动态难度曲线调整生成间隔
      */
     private startEnemySpawner(): void {
+        // 初始化生成间隔
+        const curveConfig = GAME_CONFIG.level.difficultyCurve;
+        this.currentSpawnInterval = curveConfig.enabled 
+            ? curveConfig.initialSpawnInterval 
+            : GAME_CONFIG.level.enemySpawnInterval;
+        
         this.spawnTimer = this.time.addEvent({
-            delay: GAME_CONFIG.level.enemySpawnInterval,
+            delay: this.currentSpawnInterval,
             callback: () => {
                 // 只有在敌人数量未达到上限且游戏未结束时才生成新敌人
                 if (!this.isGameOver && this.enemies.length < GAME_CONFIG.level.maxEnemies) {
@@ -498,9 +611,73 @@ export default class GameScene extends Phaser.Scene {
                     const type = Math.random() < 0.8 ? EnemyType.COMMON : EnemyType.ELITE;
                     this.spawnEnemyFromEdge(type);
                 }
+                
+                // 动态更新生成间隔
+                this.updateSpawnInterval();
             },
             loop: true
         });
+    }
+    
+    /**
+     * 更新敌人生成间隔
+     * 根据游戏时间动态调整难度
+     */
+    private updateSpawnInterval(): void {
+        const curveConfig = GAME_CONFIG.level.difficultyCurve;
+        
+        // 如果未启用难度曲线，直接返回
+        if (!curveConfig.enabled) return;
+        
+        // 计算当前进度（0-1）
+        const progress = Math.min(this.timeElapsed / curveConfig.curveDuration, 1);
+        
+        // 根据曲线类型计算当前间隔
+        let easedProgress: number;
+        switch (curveConfig.curveType) {
+            case 'linear':
+                easedProgress = progress;
+                break;
+            case 'ease-in':
+                // 开始慢，后期加速
+                easedProgress = progress * progress;
+                break;
+            case 'ease-out':
+                // 开始快，后期减速
+                easedProgress = 1 - (1 - progress) * (1 - progress);
+                break;
+            case 'ease-in-out':
+                // 先慢后快再慢
+                easedProgress = progress < 0.5 
+                    ? 2 * progress * progress 
+                    : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                break;
+            default:
+                easedProgress = progress;
+        }
+        
+        // 计算新的生成间隔
+        const newInterval = curveConfig.initialSpawnInterval - 
+            (curveConfig.initialSpawnInterval - curveConfig.minSpawnInterval) * easedProgress;
+        
+        // 如果间隔变化超过10%，更新定时器
+        if (Math.abs(newInterval - this.currentSpawnInterval) > this.currentSpawnInterval * 0.1) {
+            this.currentSpawnInterval = Math.round(newInterval);
+            
+            // 重新创建定时器以应用新的间隔
+            this.spawnTimer.destroy();
+            this.spawnTimer = this.time.addEvent({
+                delay: this.currentSpawnInterval,
+                callback: () => {
+                    if (!this.isGameOver && this.enemies.length < GAME_CONFIG.level.maxEnemies) {
+                        const type = Math.random() < 0.8 ? EnemyType.COMMON : EnemyType.ELITE;
+                        this.spawnEnemyFromEdge(type);
+                    }
+                    this.updateSpawnInterval();
+                },
+                loop: true
+            });
+        }
     }
 
     /**
@@ -520,9 +697,13 @@ export default class GameScene extends Phaser.Scene {
 
     /**
      * 从世界边界外生成敌人 - 改进为在玩家周围生成，增加割草感
+     * 支持动态等级和稀有度
      */
     private spawnEnemyFromEdge(type: EnemyType): void {
         if (this.isGameOver) return;
+        
+        // 安全检查：确保玩家存在
+        if (!this.player || !this.player.active) return;
 
         // 在玩家周围生成敌人，距离玩家 400-800 像素的环形区域
         const playerX = this.player.x;
@@ -540,20 +721,110 @@ export default class GameScene extends Phaser.Scene {
         // 确保在世界边界内
         x = Phaser.Math.Clamp(x, 50, GAME_CONFIG.worldWidth - 50);
         y = Phaser.Math.Clamp(y, 50, GAME_CONFIG.worldHeight - 50);
-
-        const enemy = new Enemy(this, x, y, type);
-        this.enemies.push(enemy);
-        enemy.setTarget(this.player);
-
-        this.physics.add.collider(this.player, enemy, this.handlePlayerEnemyCollision, undefined, this);
         
-        // 限制敌人之间的碰撞检测数量，提高性能
-        const maxColliders = 10;
-        const nearbyEnemies = this.enemies.slice(-maxColliders);
-        for (const otherEnemy of nearbyEnemies) {
-            if (otherEnemy !== enemy) {
-                this.physics.add.collider(enemy, otherEnemy);
+        // 计算敌人等级（基于游戏时间，每60秒提升1级）
+        const enemyLevel = Math.max(1, Math.floor(this.timeElapsed / 60) + 1);
+        
+        // 随机决定稀有度（基于等级和概率）
+        const rarity = this.rollEnemyRarity(enemyLevel);
+
+        const enemy = this.getEnemyFromPool(x, y, type, enemyLevel, rarity);
+        if (enemy) {
+            this.enemies.push(enemy);
+            enemy.setTarget(this.player);
+
+            this.physics.add.collider(this.player, enemy, this.handlePlayerEnemyCollision, undefined, this);
+            
+            // 限制敌人之间的碰撞检测数量，提高性能
+            const maxColliders = 10;
+            const nearbyEnemies = this.enemies.slice(-maxColliders);
+            for (const otherEnemy of nearbyEnemies) {
+                if (otherEnemy !== enemy) {
+                    this.physics.add.collider(enemy, otherEnemy);
+                }
             }
+        }
+    }
+    
+    /**
+     * 根据等级随机决定敌人稀有度
+     */
+    private rollEnemyRarity(level: number): EnemyRarity | undefined {
+        // BOSS类型不随机稀有度
+        // 基础概率
+        const baseEliteChance = 0.05;
+        const baseRareChance = 0.02;
+        const baseLegendaryChance = 0.005;
+        
+        // 等级加成（每级增加概率）
+        const levelBonus = level * 0.005;
+        
+        const rand = Math.random();
+        
+        // 传说概率
+        if (rand < baseLegendaryChance + levelBonus * 0.5) {
+            return EnemyRarity.LEGENDARY;
+        }
+        // 稀有概率
+        if (rand < baseRareChance + levelBonus) {
+            return EnemyRarity.RARE;
+        }
+        // 精英概率
+        if (rand < baseEliteChance + levelBonus * 2) {
+            return EnemyRarity.ELITE;
+        }
+        
+        // 普通
+        return undefined; // 让Enemy类自动决定
+    }
+
+    /**
+     * 从对象池获取敌人
+     */
+    private getEnemyFromPool(x: number, y: number, type: EnemyType, level: number = 1, rarity?: EnemyRarity): Enemy | null {
+        for (let i = 0; i < this.enemyPool.length; i++) {
+            const enemy = this.enemyPool[i];
+            if (!enemy.active) {
+                if (enemy.scene) {
+                    enemy.reset(x, y, type, level, rarity);
+                    return enemy;
+                } else {
+                    this.enemyPool.splice(i, 1);
+                    i--;
+                }
+            }
+        }
+
+        if (this.enemyPool.length < 50) {
+            const enemy = new Enemy(this, x, y, type, level, rarity);
+            this.enemyPool.push(enemy);
+            return enemy;
+        }
+
+        return null;
+    }
+
+    /**
+     * 回收敌人到对象池
+     */
+    private returnEnemyToPool(enemy: Enemy): void {
+        const index = this.enemies.indexOf(enemy);
+        if (index > -1) {
+            this.enemies.splice(index, 1);
+        }
+        
+        // 禁用敌人但不销毁
+        enemy.setActive(false);
+        enemy.setVisible(false);
+        
+        // 重置敌人属性，准备下次重用
+        enemy.setScale(1);
+        enemy.setAlpha(1);
+        
+        const body = enemy.body as Phaser.Physics.Arcade.Body;
+        if (body) {
+            body.enable = false;
+            body.setVelocity(0, 0);
         }
     }
 
@@ -576,11 +847,6 @@ export default class GameScene extends Phaser.Scene {
      * 敌人被击败处理
      */
     private onEnemyDefeated(enemy: Enemy): void {
-        const index = this.enemies.indexOf(enemy);
-        if (index > -1) {
-            this.enemies.splice(index, 1);
-        }
-
         if (this.isGameOver) return;
 
         this.player.addKill();
@@ -600,6 +866,22 @@ export default class GameScene extends Phaser.Scene {
             // 击败敌人时有概率掉落时空碎片
             this.spawnTimeFragment(enemy.x, enemy.y);
         }
+
+        // 击败精英敌人时尝试触发随机事件
+        if (enemyType === EnemyType.ELITE || enemyType === EnemyType.BOSS) {
+            this.tryTriggerRandomEvent();
+        }
+
+        // 回收敌人到对象池
+        this.returnEnemyToPool(enemy);
+    }
+    
+    /**
+     * 敌人超出边界处理
+     */
+    private onEnemyOutOfBounds(enemy: Enemy): void {
+        // 直接回收敌人到对象池，不掉落奖励
+        this.returnEnemyToPool(enemy);
     }
 
     /**
@@ -607,13 +889,20 @@ export default class GameScene extends Phaser.Scene {
      */
     private tryDropPowerUp(x: number, y: number, enemyType: EnemyType): void {
         // 根据敌人类型决定掉落概率
-        const dropRates: Record<EnemyType, number> = {
+        const dropRates: Partial<Record<EnemyType, number>> = {
             [EnemyType.COMMON]: 0.1,   // 10%
             [EnemyType.ELITE]: 0.3,    // 30%
-            [EnemyType.BOSS]: 0.8      // 80%
+            [EnemyType.BOSS]: 0.8,     // 80%
+            [EnemyType.RANGED]: 0.15,  // 15%
+            [EnemyType.SUMMONER]: 0.2, // 20%
+            [EnemyType.SPLITTER]: 0.15, // 15%
+            [EnemyType.BOSS_MECH_BEAST]: 0.9,
+            [EnemyType.BOSS_DATA_GHOST]: 0.9,
+            [EnemyType.BOSS_BIO_TYRANT]: 0.9
         };
 
-        if (Math.random() < dropRates[enemyType]) {
+        const dropRate = dropRates[enemyType] ?? 0.1;
+        if (Math.random() < dropRate) {
             const types = Object.values(PowerUpType);
             const type = types[Phaser.Math.Between(0, types.length - 1)];
 
@@ -666,7 +955,7 @@ export default class GameScene extends Phaser.Scene {
         bg.setStrokeStyle(3, 0xff0000, 1);
         container.add(bg);
 
-        const gameOverText = this.add.text(0, -100, 'GAME OVER', {
+        const gameOverText = this.add.text(0, -100, '游戏结束', {
             fontSize: '48px',
             fontStyle: 'bold',
             color: '#ff0000',
@@ -728,9 +1017,17 @@ export default class GameScene extends Phaser.Scene {
         this.enemies.forEach(enemy => enemy.destroy());
         this.enemies = [];
 
+        // 清理对象池中的敌人
+        this.enemyPool.forEach(enemy => enemy.destroy());
+        this.enemyPool = [];
+
         // 清理道具
         this.powerUps.forEach(powerUp => powerUp.destroy());
         this.powerUps = [];
+
+        // 清理全息幻影
+        this.holograms.forEach(hologram => hologram.destroy());
+        this.holograms = [];
 
         // 销毁定时器
         if (this.spawnTimer) {
@@ -740,8 +1037,19 @@ export default class GameScene extends Phaser.Scene {
             this.powerUpTimer.destroy();
         }
 
+        // 清理音效系统
+        if (this.audioManager) {
+            this.audioManager.stopBGM();
+        }
+
         // 移除事件监听
         this.events.off('enemyDefeated', this.onEnemyDefeated, this);
+        this.events.off('enemyOutOfBounds', this.onEnemyOutOfBounds, this);
+        this.events.off('time-rewind', this.onTimeRewind, this);
+        this.events.off('hologram-spawned', this.onHologramSpawned, this);
+        this.events.off('play-sound');
+        this.events.off('volume-changed');
+        this.events.off('toggle-mute');
 
         // 停止UI场景并重启游戏场景
         this.scene.stop('UIScene');
@@ -781,10 +1089,32 @@ export default class GameScene extends Phaser.Scene {
             enemy.update(time, delta);
         }
 
+        // 更新全息幻影
+        for (const hologram of this.holograms) {
+            hologram.update(time, delta);
+        }
+
+        // 更新无人机
+        for (const drone of this.drones) {
+            drone.update(time, delta);
+        }
+
         this.timeElapsed += delta / 1000;
         
         // 性能优化：定期清理远离玩家的敌人和道具
         this.cleanupDistantEntities();
+        
+        // 发射 update 事件供 UIScene 监听
+        this.events.emit('update', time, delta);
+        
+        // 联机同步
+        if (this.isMultiplayer && this.multiplayer) {
+            this.syncPlayerState();
+            // 每500ms同步一次敌人状态
+            if (Math.floor(time / 500) !== Math.floor((time - delta) / 500)) {
+                this.syncEnemyState();
+            }
+        }
     }
     
     /**
@@ -802,8 +1132,7 @@ export default class GameScene extends Phaser.Scene {
                 playerX, playerY, enemy.x, enemy.y
             );
             if (distance > maxDistance && this.enemies.length > 20) {
-                enemy.destroy();
-                this.enemies.splice(i, 1);
+                this.returnEnemyToPool(enemy);
             }
         }
         
@@ -840,10 +1169,13 @@ export default class GameScene extends Phaser.Scene {
 
         // 导入SaveSystem
         import('../systems/SaveSystem').then(({ SaveSystem }) => {
-            SaveSystem.autoSave(saveData as any);
+            const success = SaveSystem.autoSave(saveData as any);
             
-            // 显示保存成功提示
-            this.showSaveMessage('游戏已保存', '#00ff00');
+            if (success) {
+                this.showSaveMessage('游戏已保存', '#00ff00');
+            } else {
+                this.showSaveMessage('保存失败', '#ff0000');
+            }
         });
     }
 
@@ -950,6 +1282,9 @@ export default class GameScene extends Phaser.Scene {
         const weapons = this.player.getOwnedWeapons().map((w: any) => w.id);
         const skills = this.player.getOwnedSkillIds();
         
+        // 获取完整的技能数据（包含等级和冷却时间）
+        const ownedSkills = this.player.getSaveData().ownedSkills;
+        
         return {
             x: this.player.x,
             y: this.player.y,
@@ -962,6 +1297,7 @@ export default class GameScene extends Phaser.Scene {
             weapons,
             activeWeaponSlot: this.player.getActiveWeaponSlot(),
             skills,
+            ownedSkills, // 添加完整技能数据
             stats: {
                 attack: stats.attack,
                 defense: stats.defense,
@@ -1006,6 +1342,9 @@ export default class GameScene extends Phaser.Scene {
 
         console.log('[GameScene] 应用时间回溯数据');
         
+        // 先暂停物理引擎，防止恢复过程中出现异常
+        this.physics.pause();
+        
         // 恢复玩家状态
         this.player.loadSaveData({
             version: '1.0.0',
@@ -1018,11 +1357,24 @@ export default class GameScene extends Phaser.Scene {
         // 设置玩家位置
         this.player.setPosition(snapshot.playerData.x, snapshot.playerData.y);
 
-        // 清理现有敌人和道具
-        this.enemies.forEach(e => e.destroy());
+        // 确保玩家物理体已启用
+        const playerBody = this.player.body as Phaser.Physics.Arcade.Body;
+        if (playerBody) {
+            playerBody.enable = true;
+            playerBody.setVelocity(0, 0);
+        }
+
+        // 清理现有敌人 - 正确回收到对象池
+        for (const enemy of this.enemies) {
+            this.returnEnemyToPool(enemy);
+        }
         this.enemies = [];
+        
+        // 清理道具
         this.powerUps.forEach(p => p.destroy());
         this.powerUps = [];
+        
+        // 清理时空碎片
         this.timeFragments.forEach(f => f.destroy());
         this.timeFragments = [];
 
@@ -1032,10 +1384,36 @@ export default class GameScene extends Phaser.Scene {
         // 重新生成敌人
         this.spawnInitialEnemies();
 
-        // 恢复游戏
+        // 恢复物理引擎和游戏
         this.physics.resume();
+        
+        // 确保所有敌人和玩家的物理体正确激活
+        this.time.delayedCall(50, () => {
+            // 确保玩家物理体启用
+            const pBody = this.player.body as Phaser.Physics.Arcade.Body;
+            if (pBody) {
+                pBody.enable = true;
+            }
+            
+            // 确保敌人物理体启用
+            for (const enemy of this.enemies) {
+                if (enemy && enemy.active) {
+                    const body = enemy.body as Phaser.Physics.Arcade.Body;
+                    if (body) {
+                        body.enable = true;
+                    }
+                    enemy.setTarget(this.player);
+                }
+            }
+        });
 
+        // 显示成功消息
         this.showTimeRewindMessage(`时间回溯成功！`, '#00ff00');
+        
+        // 确保 TimeRewindScene 已关闭
+        if (this.scene.isActive('TimeRewindScene')) {
+            this.scene.stop('TimeRewindScene');
+        }
     }
 
     /**
@@ -1131,5 +1509,738 @@ export default class GameScene extends Phaser.Scene {
      */
     public getTimeRewindSystem(): TimeRewindSystem {
         return this.timeRewindSystem;
+    }
+
+    /**
+     * 初始化音效系统
+     */
+    private initAudioSystem(): void {
+        this.audioManager = new AudioManager(this);
+        
+        // 开始播放背景音乐
+        this.audioManager.playBGM(SoundType.BGM_GAME);
+        
+        // 监听音效事件
+        this.events.on('play-sound', (soundType: SoundType) => {
+            this.audioManager.playSound(soundType);
+        });
+        
+        // 监听音量变化事件
+        this.events.on('volume-changed', (volumes: { master: number; music: number; sfx: number }) => {
+            this.audioManager.setMasterVolume(volumes.master);
+            this.audioManager.setMusicVolume(volumes.music);
+            this.audioManager.setSFXVolume(volumes.sfx);
+        });
+        
+        // 监听静音切换事件
+        this.events.on('toggle-mute', () => {
+            this.audioManager.toggleMute();
+        });
+        
+        console.log('[GameScene] 音效系统初始化完成');
+    }
+
+    /**
+     * 获取音效管理器
+     */
+    public getAudioManager(): AudioManager {
+        return this.audioManager;
+    }
+
+    /**
+     * 全息幻影生成事件
+     */
+    private onHologramSpawned(hologram: Hologram): void {
+        this.holograms.push(hologram);
+        
+        // 监听全息幻影销毁事件
+        hologram.once('destroy', () => {
+            const index = this.holograms.indexOf(hologram);
+            if (index > -1) {
+                this.holograms.splice(index, 1);
+            }
+        });
+    }
+
+    /**
+     * 无人机创建事件
+     */
+    private onDroneSpawned(drone: Drone): void {
+        this.drones.push(drone);
+        
+        // 监听无人机销毁事件
+        drone.once('destroy', () => {
+            const index = this.drones.indexOf(drone);
+            if (index > -1) {
+                this.drones.splice(index, 1);
+            }
+        });
+
+        console.log('[GameScene] 无人机已添加到场景');
+    }
+
+    /**
+     * 无人机销毁事件
+     */
+    private onDroneDestroyed(drone: Drone): void {
+        console.log('[GameScene] 无人机已销毁');
+    }
+
+    /**
+     * 职业能力系统召唤无人机事件（数据黑客职业）
+     * 由 ClassAbilitySystem 触发
+     */
+    private onSummonDrone(data: { x: number; y: number; damage: number; duration: number }): void {
+        console.log('[GameScene] 收到召唤无人机事件');
+        
+        // 检查是否已有活跃无人机
+        const activeDrones = this.drones.filter(d => d.getIsActive());
+        if (activeDrones.length >= 3) {
+            console.log('[GameScene] 已有3个活跃无人机，暂不召唤');
+            return;
+        }
+
+        // 创建无人机
+        const drone = new Drone(this, data.x, data.y, this.player!, {
+            hp: 50,
+            attack: data.damage,
+            duration: data.duration / 1000 // 转换为秒
+        });
+
+        // drone-spawned 事件会在 Drone 构造函数中触发
+        // 这会自动将无人机添加到 drones 数组中
+        console.log('[GameScene] 召唤无人机成功');
+    }
+
+    // ========== 测试系统相关方法 ==========
+
+    /**
+     * 初始化测试系统（仅开发环境）
+     */
+    private initTestSystem(): void {
+        if (!import.meta.env.DEV) return;
+
+        // 监听测试事件
+        this.events.on('test-spawn-enemy', (type: EnemyType) => {
+            this.spawnTestEnemy(type);
+        });
+
+        this.events.on('test-clear-enemies', () => {
+            this.clearAllEnemies();
+        });
+
+        this.events.on('test-kill-enemies', () => {
+            this.killAllEnemies();
+        });
+
+        this.events.on('test-damage-enemies', (percent: number) => {
+            this.damageAllEnemies(percent);
+        });
+
+        this.events.on('test-slow-enemies', () => {
+            this.slowAllEnemies();
+        });
+
+        this.events.on('test-trigger-event', (eventId: string) => {
+            this.triggerTestEvent(eventId);
+        });
+
+        console.log('[GameScene] 测试系统已初始化');
+    }
+
+    /**
+     * 打开测试菜单（仅开发环境）
+     */
+    private openTestMenu(): void {
+        if (!import.meta.env.DEV) return;
+        
+        // 暂停游戏
+        this.scene.pause();
+        
+        // 启动测试菜单场景
+        this.scene.launch('TestMenuScene', { player: this.player });
+    }
+
+    /**
+     * 生成测试敌人
+     */
+    public spawnTestEnemy(type: EnemyType, level: number = 1, rarity?: EnemyRarity): void {
+        if (!this.player || !this.player.active) return;
+
+        // 在玩家附近生成
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 200 + Math.random() * 200;
+        const x = Phaser.Math.Clamp(this.player.x + Math.cos(angle) * distance, 50, GAME_CONFIG.worldWidth - 50);
+        const y = Phaser.Math.Clamp(this.player.y + Math.sin(angle) * distance, 50, GAME_CONFIG.worldHeight - 50);
+
+        const enemy = this.getEnemyFromPool(x, y, type, level, rarity);
+        if (enemy) {
+            this.enemies.push(enemy);
+            enemy.setTarget(this.player);
+            this.physics.add.collider(this.player, enemy, this.handlePlayerEnemyCollision, undefined, this);
+        }
+    }
+
+    /**
+     * 清除所有敌人
+     */
+    private clearAllEnemies(): void {
+        this.enemies.forEach(enemy => {
+            this.returnEnemyToPool(enemy);
+        });
+        this.enemies = [];
+    }
+
+    /**
+     * 击杀所有敌人
+     */
+    private killAllEnemies(): void {
+        const enemiesToKill = [...this.enemies];
+        enemiesToKill.forEach(enemy => {
+            enemy.takeDamage(99999);
+        });
+    }
+
+    /**
+     * 对所有敌人造成伤害
+     */
+    private damageAllEnemies(percent: number): void {
+        this.enemies.forEach(enemy => {
+            const damage = enemy.getStats().maxHp * percent;
+            enemy.takeDamage(damage);
+        });
+    }
+
+    /**
+     * 减速所有敌人
+     */
+    private slowAllEnemies(): void {
+        this.enemies.forEach(enemy => {
+            const stats = enemy.getStats();
+            enemy['stats'].moveSpeed = stats.moveSpeed * 0.5;
+        });
+    }
+
+    /**
+     * 触发测试事件
+     */
+    private triggerTestEvent(eventId: string): void {
+        const eventData = EVENTS[eventId];
+        if (eventData) {
+            this.openEventScene(eventData);
+        }
+    }
+
+    // ========== 暂停系统相关方法 ==========
+
+    /**
+     * 切换暂停状态
+     */
+    private togglePause(): void {
+        if (this.isGameOver) return;
+        
+        if (this.isPaused) {
+            this.resumeGame();
+        } else {
+            this.pauseGame();
+        }
+    }
+
+    /**
+     * 暂停游戏
+     */
+    private pauseGame(): void {
+        if (this.isGameOver || this.isPaused) return;
+        
+        this.isPaused = true;
+
+        // 暂停物理引擎
+        this.physics.pause();
+
+        // 暂停所有计时器
+        if (this.spawnTimer) {
+            this.spawnTimer.paused = true;
+        }
+        if (this.powerUpTimer) {
+            this.powerUpTimer.paused = true;
+        }
+
+        // 暂停所有动画
+        this.tweens.pauseAll();
+
+        // 暂停时间回溯系统
+        if (this.timeRewindSystem) {
+            this.timeRewindSystem.pause();
+        }
+
+        // 暂停音效系统
+        if (this.audioManager) {
+            this.audioManager.pause();
+        }
+
+        // 启动暂停场景
+        this.scene.launch('PauseScene');
+    }
+
+    /**
+     * 恢复游戏
+     */
+    private resumeGame(): void {
+        if (!this.isPaused) return;
+        
+        this.isPaused = false;
+
+        // 恢复物理引擎
+        this.physics.resume();
+
+        // 恢复所有计时器
+        if (this.spawnTimer) {
+            this.spawnTimer.paused = false;
+        }
+        if (this.powerUpTimer) {
+            this.powerUpTimer.paused = false;
+        }
+
+        // 恢复所有动画
+        this.tweens.resumeAll();
+
+        // 恢复时间回溯系统
+        if (this.timeRewindSystem) {
+            this.timeRewindSystem.resume();
+        }
+
+        // 恢复音效系统
+        if (this.audioManager) {
+            this.audioManager.resume();
+        }
+    }
+
+    /**
+     * 检查游戏是否暂停
+     */
+    public getIsPaused(): boolean {
+        return this.isPaused;
+    }
+
+    // ========== 随机事件系统相关方法 ==========
+
+    /**
+     * 初始化随机事件系统
+     */
+    private initRandomEventSystem(): void {
+        this.randomEventSystem = new RandomEventSystem(this);
+        
+        // 设置玩家引用
+        this.randomEventSystem.setPlayer(this.player);
+        
+        // 设置回调
+        this.randomEventSystem.setCallbacks(
+            (event) => {
+                console.log(`[RandomEvent] 触发事件: ${event.name}`);
+                this.openEventScene(event);
+            },
+            (result) => {
+                console.log(`[RandomEvent] 事件结果: ${result.message}`);
+                this.showEventResultMessage(result);
+            }
+        );
+
+        // 监听时空碎片相关事件
+        this.events.on('add-time-fragments', (value: number) => {
+            if (this.timeRewindSystem) {
+                this.timeRewindSystem.addTimeFragments(value);
+            }
+        });
+
+        this.events.on('consume-time-fragments', (value: number) => {
+            if (this.timeRewindSystem) {
+                const currentFragments = this.timeRewindSystem.getTimeFragments();
+                if (currentFragments >= value) {
+                    // 这里需要添加消耗时空碎片的方法
+                    // 暂时通过事件通知
+                    this.events.emit('time-fragments-changed', currentFragments - value);
+                }
+            }
+        });
+
+        // 监听事件敌人生成
+        this.events.on('spawn-event-enemies', (data: { type: EnemyType; count: number }) => {
+            for (let i = 0; i < data.count; i++) {
+                this.spawnEnemyFromEdge(data.type);
+            }
+        });
+    }
+
+    /**
+     * 尝试触发随机事件
+     */
+    private tryTriggerRandomEvent(): void {
+        if (this.isGameOver || this.isPaused) return;
+
+        const currentTime = this.timeElapsed;
+        const killCount = this.player.getKillCount();
+        const playerLevel = this.player.getLevel();
+
+        const event = this.randomEventSystem.tryTriggerEvent(currentTime, killCount, playerLevel);
+        
+        if (event) {
+            // 事件已触发，打开事件场景
+            this.openEventScene(event);
+        }
+    }
+
+    /**
+     * 打开事件场景
+     */
+    private openEventScene(event: any): void {
+        if (this.isGameOver) return;
+
+        // 暂停游戏
+        this.physics.pause();
+
+        // 启动事件场景
+        this.scene.launch('EventScene', {
+            eventSystem: this.randomEventSystem,
+            player: this.player,
+            event: event,
+            onClose: () => {
+                if (this.physics) {
+                    this.physics.resume();
+                }
+            }
+        });
+    }
+
+    /**
+     * 显示事件结果消息
+     */
+    private showEventResultMessage(result: any): void {
+        const centerX = this.cameras.main.scrollX + GAME_CONFIG.width / 2;
+        const centerY = this.cameras.main.scrollY + 100;
+
+        const container = this.add.container(centerX, centerY);
+        container.setDepth(2000);
+
+        // 背景
+        const bg = this.add.rectangle(0, 0, 400, 60, 0x000000, 0.9);
+        bg.setStrokeStyle(2, result.success ? 0x00ff00 : 0xff0000, 1);
+        container.add(bg);
+
+        // 消息文本
+        const messageText = this.add.text(0, 0, result.message, {
+            fontSize: '18px',
+            color: '#ffffff',
+            fontFamily: 'Courier New, monospace',
+            align: 'center'
+        });
+        messageText.setOrigin(0.5);
+        container.add(messageText);
+
+        // 动画
+        this.tweens.add({
+            targets: container,
+            alpha: { from: 0, to: 1 },
+            y: centerY - 20,
+            duration: 300,
+            ease: 'Power2',
+            onComplete: () => {
+                this.time.delayedCall(2000, () => {
+                    this.tweens.add({
+                        targets: container,
+                        alpha: 0,
+                        y: centerY - 50,
+                        duration: 300,
+                        onComplete: () => container.destroy()
+                    });
+                });
+            }
+        });
+    }
+
+    /**
+     * 获取随机事件系统
+     */
+    public getRandomEventSystem(): RandomEventSystem {
+        return this.randomEventSystem;
+    }
+
+    // ========== 联机系统相关方法 ==========
+
+    /**
+     * 初始化联机系统
+     */
+    private initMultiplayerSystem(): void {
+        if (!this.multiplayer) return;
+
+        console.log('[GameScene] 初始化联机系统');
+
+        // 监听远程玩家更新
+        this.multiplayer.on(MultiplayerEvent.PLAYER_UPDATE, (data: any) => {
+            this.handleRemotePlayerUpdate(data);
+        });
+
+        // 监听技能使用
+        this.multiplayer.on(MultiplayerEvent.SKILL_USED, (data: any) => {
+            this.handleRemoteSkillUse(data);
+        });
+
+        // 监听物品拾取
+        this.multiplayer.on(MultiplayerEvent.ITEM_PICKED_UP, (data: any) => {
+            this.handleRemoteItemPickup(data);
+        });
+
+        // 监听伤害事件
+        this.multiplayer.on(MultiplayerEvent.DAMAGE_DEALT, (data: any) => {
+            this.handleRemoteDamageDealt(data);
+        });
+
+        // 监听敌人更新
+        this.multiplayer.on(MultiplayerEvent.ENEMY_UPDATE, (data: any) => {
+            this.handleEnemyUpdate(data);
+        });
+
+        // 监听时间回溯投票
+        this.multiplayer.on(MultiplayerEvent.TIME_REWIND_VOTE_UPDATE, (data: any) => {
+            this.handleTimeRewindVote(data);
+        });
+
+        // 监听时间回溯执行
+        this.multiplayer.on(MultiplayerEvent.TIME_REWIND_EXECUTE, (data: any) => {
+            this.handleTimeRewindExecute(data);
+        });
+
+        // 监听玩家断开连接
+        this.multiplayer.on(MultiplayerEvent.PLAYER_LEFT, (data: any) => {
+            this.handlePlayerDisconnect(data);
+        });
+    }
+
+    /**
+     * 处理远程玩家更新
+     */
+    private handleRemotePlayerUpdate(data: any): void {
+        // 更新远程玩家位置
+        this.multiplayer?.updateRemotePlayers(16.67); // 假设60fps
+    }
+
+    /**
+     * 处理远程技能使用
+     */
+    private handleRemoteSkillUse(data: any): void {
+        if (data.playerId === this.multiplayer?.getPlayerId()) return;
+
+        // 触发技能效果（由技能系统处理）
+        this.events.emit('remote-skill-use', {
+            playerId: data.playerId,
+            skillId: data.skillId,
+            targetX: data.targetX,
+            targetY: data.targetY
+        });
+    }
+
+    /**
+     * 处理远程物品拾取
+     */
+    private handleRemoteItemPickup(data: any): void {
+        // 移除被其他玩家拾取的物品
+        const index = this.powerUps.findIndex(p => p.x === data.position?.x && p.y === data.position?.y);
+        if (index !== -1) {
+            const powerUp = this.powerUps[index];
+            this.powerUps.splice(index, 1);
+            powerUp.destroy();
+        }
+    }
+
+    /**
+     * 处理远程伤害事件
+     */
+    private handleRemoteDamageDealt(data: any): void {
+        // 显示伤害数字
+        if (data.position) {
+            this.showDamageNumber(data.position.x, data.position.y, data.damage, data.isCrit);
+        }
+    }
+
+    /**
+     * 处理敌人更新
+     */
+    private handleEnemyUpdate(data: any): void {
+        // 同步敌人状态（非房主）
+        if (!this.multiplayer?.isHost()) {
+            for (const enemyData of data.enemies) {
+                const enemy = this.enemies.find(e => e.id === enemyData.id);
+                if (enemy) {
+                    enemy.setPosition(enemyData.x, enemyData.y);
+                    // 更新其他状态...
+                }
+            }
+        }
+    }
+
+    /**
+     * 处理时间回溯投票
+     */
+    private handleTimeRewindVote(data: any): void {
+        // 显示投票状态
+        const votes = Object.values(data.votes) as boolean[];
+        const yesCount = votes.filter(v => v).length;
+        
+        this.showTimeRewindVoteMessage(yesCount, data.totalPlayers);
+    }
+
+    /**
+     * 处理时间回溯执行
+     */
+    private handleTimeRewindExecute(data: any): void {
+        // 执行时间回溯
+        this.events.emit('time-rewind', { snapshotId: data.snapshotId });
+    }
+
+    /**
+     * 处理玩家断开连接
+     */
+    private handlePlayerDisconnect(data: any): void {
+        // 移除远程玩家显示
+        const remotePlayerDisplay = this.remotePlayers.get(data.playerId);
+        if (remotePlayerDisplay) {
+            remotePlayerDisplay.destroy();
+            this.remotePlayers.delete(data.playerId);
+        }
+
+        // 显示断开消息
+        this.showMultiplayerMessage(`${data.playerName} 已断开连接`, 0xff6600);
+    }
+
+    /**
+     * 显示伤害数字
+     */
+    private showDamageNumber(x: number, y: number, damage: number, isCrit: boolean): void {
+        const color = isCrit ? '#ffff00' : '#ffffff';
+        const size = isCrit ? '24px' : '18px';
+
+        const text = this.add.text(x, y - 20, damage.toString(), {
+            fontSize: size,
+            fontStyle: 'bold',
+            color: color,
+            fontFamily: 'Courier New, monospace',
+            stroke: '#000000',
+            strokeThickness: 2
+        }).setOrigin(0.5).setDepth(500);
+
+        this.tweens.add({
+            targets: text,
+            y: y - 60,
+            alpha: 0,
+            duration: 800,
+            onComplete: () => text.destroy()
+        });
+    }
+
+    /**
+     * 显示时间回溯投票消息
+     */
+    private showTimeRewindVoteMessage(yesCount: number, totalPlayers: number): void {
+        const msg = this.add.text(
+            this.cameras.main.scrollX + GAME_CONFIG.width / 2,
+            this.cameras.main.scrollY + 150,
+            `时间回溯投票: ${yesCount}/${totalPlayers}`,
+            {
+                fontSize: '20px',
+                color: '#00ffff',
+                fontFamily: 'Courier New, monospace',
+                backgroundColor: '#000000',
+                padding: { x: 15, y: 8 }
+            }
+        ).setOrigin(0.5).setDepth(2000);
+
+        this.tweens.add({
+            targets: msg,
+            alpha: 0,
+            duration: 2000,
+            onComplete: () => msg.destroy()
+        });
+    }
+
+    /**
+     * 显示联机消息
+     */
+    private showMultiplayerMessage(text: string, color: number): void {
+        const msg = this.add.text(
+            this.cameras.main.scrollX + GAME_CONFIG.width / 2,
+            this.cameras.main.scrollY + 80,
+            text,
+            {
+                fontSize: '18px',
+                color: `#${color.toString(16).padStart(6, '0')}`,
+                fontFamily: 'Courier New, monospace',
+                backgroundColor: '#000000',
+                padding: { x: 15, y: 8 }
+            }
+        ).setOrigin(0.5).setDepth(2000);
+
+        this.tweens.add({
+            targets: msg,
+            alpha: 0,
+            y: msg.y - 30,
+            duration: 2000,
+            onComplete: () => msg.destroy()
+        });
+    }
+
+    /**
+     * 同步玩家状态
+     */
+    private syncPlayerState(): void {
+        if (!this.isMultiplayer || !this.multiplayer || !this.player) return;
+
+        const stats = this.player.getStats();
+        this.multiplayer.sendPlayerUpdate({
+            x: this.player.x,
+            y: this.player.y,
+            velocityX: (this.player.body as Phaser.Physics.Arcade.Body).velocity.x,
+            velocityY: (this.player.body as Phaser.Physics.Arcade.Body).velocity.y,
+            facing: this.player.facing || 0,
+            state: this.player.getState?.() || 'idle',
+            hp: stats.hp
+        });
+    }
+
+    /**
+     * 同步敌人状态（仅房主）
+     */
+    private syncEnemyState(): void {
+        if (!this.isMultiplayer || !this.multiplayer || !this.multiplayer.isHost()) return;
+
+        const enemyData = this.enemies.slice(0, 20).map(enemy => ({
+            id: enemy.id,
+            type: enemy.getEnemyType(),
+            x: enemy.x,
+            y: enemy.y,
+            hp: enemy.getStats().hp,
+            state: enemy.getState?.() || 'idle'
+        }));
+
+        this.multiplayer.sendEnemyUpdate(enemyData);
+    }
+
+    /**
+     * 获取难度倍率
+     */
+    public getDifficultyMultiplier(): number {
+        return this.difficultyMultiplier;
+    }
+
+    /**
+     * 是否为联机模式
+     */
+    public isMultiplayerMode(): boolean {
+        return this.isMultiplayer;
+    }
+
+    /**
+     * 获取联机系统
+     */
+    public getMultiplayerSystem(): MultiplayerSystem | null {
+        return this.multiplayer;
     }
 }

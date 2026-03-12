@@ -250,9 +250,10 @@ export default class SaveScene extends Phaser.Scene {
         
         if (success) {
             this.showMessage('保存成功！', '#00ff00');
-            // 刷新槽位信息
-            this.slots = SaveSystem.getAllSlots();
-            this.scene.restart({ player: this.player, mode: this.mode });
+            // 延迟关闭场景，让玩家看到成功消息
+            this.time.delayedCall(500, () => {
+                this.closeScene();
+            });
         } else {
             this.showMessage('保存失败！', '#ff0000');
         }

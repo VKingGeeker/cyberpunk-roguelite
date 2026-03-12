@@ -24,7 +24,7 @@ export class SkillSystem {
     private loadSkills(): void {
         // 这里从数据文件加载技能
         // MVP阶段暂时硬编码
-        const skillIds = ['skill_slash', 'skill_spin', 'skill_dash', 'skill_heal', 'skill_shield'];
+        const skillIds = ['skill_neon_slash', 'skill_plasma_spin', 'skill_chain_lightning', 'skill_laser_beam', 'skill_nanobot_shield'];
         for (const id of skillIds) {
             const skill = getSkillById(id);
             if (skill) {

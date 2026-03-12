@@ -8,14 +8,14 @@ export default defineConfig({
     }
   },
   server: {
-    port: 5000,
-    host: true
+    port: 5173
   },
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
     rollupOptions: {
+      external: ['socket.io-client'],
       output: {
         manualChunks: {
           phaser: ['phaser']
