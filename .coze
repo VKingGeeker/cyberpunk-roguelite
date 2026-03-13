@@ -1,5 +1,5 @@
 [project]
-entrypoint = "public/index.html"
+entrypoint = "index.html"
 requires = ["nodejs-24"]
 
 [dev]
